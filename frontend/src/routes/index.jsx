@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from '../components/layout/AppLayout'
 
-const HomePage = lazy(() => import('../pages/Home'))
+const HomePage = lazy(() => import('../pages/Accueil'))
 const AboutPage = lazy(() => import('../pages/About'))
 const NotFoundPage = lazy(() => import('../pages/NotFound'))
 
