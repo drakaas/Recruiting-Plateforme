@@ -1,3 +1,5 @@
+import { CheckCircle, Zap, Users, Trophy } from 'lucide-react'
+
 export function useAccueil() {
   const heroTags = ['Télétravail', 'CDI', 'PME', 'Startup']
 
@@ -56,19 +58,35 @@ export function useAccueil() {
   ]
 
   const companies = [
-    { name: 'TechFlow', initials: 'TF', color: 'bg-blue-500' },
-    { name: 'StartupX', initials: 'SX', color: 'bg-purple-500' },
-    { name: 'DataCore', initials: 'DC', color: 'bg-green-500' },
-    { name: 'CloudSync', initials: 'CS', color: 'bg-orange-500' },
-    { name: 'WebMaster', initials: 'WM', color: 'bg-pink-500' },
-    { name: 'InnovateLabs', initials: 'IL', color: 'bg-indigo-500' },
+    { name: 'TechFlow', initials: 'TF', color: 'bg-sky-500' },
+    { name: 'StartupX', initials: 'SX', color: 'bg-cyan-500' },
+    { name: 'DataCore', initials: 'DC', color: 'bg-teal-500' },
+    { name: 'CloudSync', initials: 'CS', color: 'bg-indigo-500' },
+    { name: 'WebMaster', initials: 'WM', color: 'bg-blue-500' },
+    { name: 'InnovateLabs', initials: 'IL', color: 'bg-emerald-500' },
   ]
 
   const features = [
-    { icon: 'CheckCircle', title: 'Offres vérifiées', description: 'Toutes nos offres sont validées et à jour pour vous garantir les meilleurs opportunités' },
-    { icon: 'Zap', title: 'Matching intelligent', description: "Notre algorithme vous propose les offres qui correspondent le mieux à votre profil" },
-    { icon: 'Users', title: 'Accompagnement', description: "Des experts vous conseillent tout au long de votre recherche d'emploi" },
-    { icon: 'Trophy', title: 'Taux de succès', description: '98% de nos candidats trouvent un emploi dans les 3 mois' },
+    {
+      icon: CheckCircle,
+      title: 'Offres vérifiées',
+      description: 'Toutes nos offres sont validées et à jour pour vous garantir les meilleurs opportunités',
+    },
+    {
+      icon: Zap,
+      title: 'Matching intelligent',
+      description: "Notre algorithme vous propose les offres qui correspondent le mieux à votre profil",
+    },
+    {
+      icon: Users,
+      title: 'Accompagnement',
+      description: "Des experts vous conseillent tout au long de votre recherche d'emploi",
+    },
+    {
+      icon: Trophy,
+      title: 'Taux de succès',
+      description: '98% de nos candidats trouvent un emploi dans les 3 mois',
+    },
   ]
 
   const plans = [
@@ -123,7 +141,7 @@ export function useAccueil() {
       name: 'Sophie Martin',
       role: 'Designer UX',
       company: 'TechFlow',
-      text: "JobKey a complètement changé ma recherche d'emploi. J'ai trouvé mon poste de rêve en 2 semaines!",
+  text: "Success Pool a complètement changé ma recherche d'emploi. J'ai trouvé mon poste de rêve en 2 semaines!",
       rating: 5,
       avatar: 'SM',
     },
@@ -131,7 +149,7 @@ export function useAccueil() {
       name: 'Pierre Dupont',
       role: 'Développeur Full Stack',
       company: 'StartupX',
-      text: "La plateforme est très intuitive et l'accompagnement était excellent. Je recommande vivement!",
+  text: "La plateforme Success Pool est intuitive et l'accompagnement a été excellent. Je recommande vivement!",
       rating: 5,
       avatar: 'PD',
     },

@@ -1,6 +1,7 @@
 import { CheckCircle, Zap, Users, Trophy } from "lucide-react"
 
-export default function WhyUsSection({ features = [
+export default function WhyUsSection({
+  features = [
     {
       icon: CheckCircle,
       title: "Offres vérifiées",
@@ -21,31 +22,37 @@ export default function WhyUsSection({ features = [
       title: "Taux de succès",
       description: "98% de nos candidats trouvent un emploi dans les 3 mois",
     },
-  ] }) {
-
+  ],
+}) {
   return (
-    <section className="bg-background py-16 md:py-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Pourquoi nous choisir</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            JobKey est la plateforme la plus fiable pour trouver votre prochain emploi
+    <section className="py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-14 grid gap-4 text-center">
+          <span className="mx-auto inline-flex items-center justify-center rounded-full border border-border/70 bg-secondary/60 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Expérience candidat premium
+          </span>
+          <h2 className="text-3xl font-bold text-foreground md:text-4xl">Pourquoi les talents choisissent Success Pool</h2>
+          <p className="mx-auto max-w-2xl text-base text-muted-foreground">
+            Notre méthode Success Pool combine matching intelligent, accompagnement humain et retours en continu pour sécuriser votre prochain poste.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {features.map((feature, index) => {
-            const Icon = feature.icon
+        <div className="grid gap-8 md:grid-cols-2">
+          {features.map((feature) => {
+            const Icon = feature.icon || CheckCircle
             return (
-              <div key={index} className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-accent/20">
-                    <Icon size={24} className="text-accent" />
-                  </div>
+              <div
+                key={feature.title}
+                className="group relative overflow-hidden rounded-3xl border border-border/70 bg-white/95 p-8 shadow-lg transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl"
+              >
+                <div className="mb-5 inline-flex rounded-2xl bg-primary/10 p-3">
+                  <Icon size={24} className="text-primary" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground">{feature.description}</p>
+                <h3 className="text-lg font-semibold text-foreground">{feature.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+                <div className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground/80">
+                  <span className="h-px w-6 bg-border" />
+                  Excellence confirmée
                 </div>
               </div>
             )

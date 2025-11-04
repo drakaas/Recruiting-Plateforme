@@ -1,11 +1,12 @@
-import { Star } from "lucide-react"
+import { Star, Quote } from "lucide-react"
 
-export default function TestimonialsSection({ testimonials = [
+export default function TestimonialsSection({
+  testimonials = [
     {
       name: "Sophie Martin",
       role: "Designer UX",
       company: "TechFlow",
-      text: "JobKey a complètement changé ma recherche d'emploi. J'ai trouvé mon poste de rêve en 2 semaines!",
+      text: "Success Pool a complètement changé ma recherche d'emploi. J'ai trouvé mon poste de rêve en 2 semaines!",
       rating: 5,
       avatar: "SM",
     },
@@ -25,38 +26,45 @@ export default function TestimonialsSection({ testimonials = [
       rating: 5,
       avatar: "ML",
     },
-  ] }) {
-
+  ],
+}) {
   return (
-    <section className="bg-background py-16 md:py-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Ce que nos utilisateurs disent</h2>
-          <p className="text-muted-foreground">Plus de 45 000 candidats ont trouvé leur emploi grâce à JobKey</p>
+    <section className="py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-14 grid gap-4 text-center">
+          <span className="mx-auto inline-flex items-center justify-center rounded-full border border-border/70 bg-secondary/60 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Ils ont trouvé leur poste avec Success Pool
+          </span>
+          <h2 className="text-3xl font-bold text-foreground md:text-4xl">Des témoignages qui parlent d'eux-mêmes</h2>
+          <p className="mx-auto max-w-2xl text-base text-muted-foreground">
+            Notre équipe accompagne chaque candidat jusqu'à l'embauche. Découvrez leurs retours sur l'expérience Success Pool.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {testimonials.map((testimonial, index) => (
-            <div key={index} className="bg-white border border-border rounded-lg p-8 hover:shadow-lg transition">
-              <div className="flex gap-1 mb-4">
-                {Array(testimonial.rating)
-                  .fill(null)
-                  .map((_, i) => (
-                    <Star key={i} size={18} className="fill-accent text-accent" />
-                  ))}
-              </div>
+        <div className="grid gap-8 md:grid-cols-3">
+          {testimonials.map((testimonial) => (
+            <div
+              key={testimonial.name}
+              className="relative flex h-full flex-col justify-between rounded-4xl border border-border/70 bg-white/95 p-8 shadow-lg transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-2xl"
+            >
+              <Quote size={32} className="text-primary/30" />
 
-              <p className="text-foreground mb-6">"{testimonial.text}"</p>
+              <p className="mt-6 flex-1 text-base leading-relaxed text-foreground">“{testimonial.text}”</p>
 
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
+              <div className="mt-8 flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-linear-to-r from-primary to-accent text-sm font-semibold text-primary-foreground shadow-md">
                   {testimonial.avatar}
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">{testimonial.name}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm font-semibold text-foreground">{testimonial.name}</p>
+                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
                     {testimonial.role} • {testimonial.company}
                   </p>
+                  <div className="mt-2 flex gap-1">
+                    {Array.from({ length: testimonial.rating }).map((_, idx) => (
+                      <Star key={idx} size={16} className="fill-primary text-primary" />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
