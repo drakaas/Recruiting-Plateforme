@@ -32,8 +32,8 @@ export default function JobsPage() {
       </section>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="md:col-span-1">
             <div className="sticky top-4 bg-card border border-border rounded-lg p-6">
               <h3 className="font-bold text-lg text-foreground mb-6">Filtres</h3>
 
@@ -113,7 +113,7 @@ export default function JobsPage() {
             </div>
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="md:col-span-3">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-foreground">{filteredJobs.length} résultats</h2>
               {(searchQuery || selectedCategory || selectedLevel || selectedType || selectedLocation) && (
