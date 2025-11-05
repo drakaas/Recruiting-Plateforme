@@ -1,17 +1,27 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Building2,
+  CalendarCheck,
+  CheckCircle2,
+  Download,
+  FileText,
   Image,
   KeyRound,
   Lock,
   Mail,
   Phone,
+  Send,
+  Share2,
   ShieldCheck,
   User,
   UserPlus,
+  ChevronDown,
+  Video,
+  Users,
   X,
 } from "lucide-react"
 import { useAuth } from "../../context/useAuth"
+import { RECOMMENDATION_SEED } from "./recommendation-seed"
 
 const recruiterHighlights = [
   {
@@ -42,30 +52,164 @@ const upcomingActions = [
 
 const recommendedCandidates = [
   {
+    id: "candidate-lina",
     name: "Lina Moreau",
     role: "Data Scientist Senior",
     experience: "7 ans d'expérience · IA & Risk Analytics",
     score: 92,
     availability: "Disponible sous 1 mois",
     note: "Ex-Lead Data chez Crédit Agricole, pilotage de projets anti-fraude IA.",
+    email: "lina.moreau@talents.ai",
+    phone: "+33 6 45 67 89 12",
+    resumeUrl: "https://example.com/cv-lina-moreau.pdf",
+    videoUrl: "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+    aiInterview: {
+      sessionDate: "15 octobre 2025",
+      duration: "18 minutes",
+      questions: [
+        {
+          id: "q1",
+          title: "Expliquez un cas où vous avez détecté une fraude en moins de 48h",
+          timeLimit: "2 min",
+        },
+        {
+          id: "q2",
+          title: "Comment sécuriser un pipeline data en production contre les biais IA ?",
+          timeLimit: "3 min",
+        },
+        {
+          id: "q3",
+          title: "Priorisation des chantiers IA dans un environnement bancaire",
+          timeLimit: "90 s",
+        },
+      ],
+    },
+    status: "qualified",
   },
   {
+    id: "candidate-yanis",
     name: "Yanis Belkacem",
     role: "Product Manager Digital Banking",
     experience: "9 ans d'expérience · Mobile & Paiements",
     score: 88,
     availability: "Préavis de 2 mois",
     note: "Responsable lancement app paiement instantané SG Afrique.",
+    email: "yanis.belkacem@productlead.io",
+    phone: "+33 6 98 76 54 32",
+    resumeUrl: "https://example.com/cv-yanis-belkacem.pdf",
+    videoUrl: "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+    aiInterview: {
+      sessionDate: "11 octobre 2025",
+      duration: "16 minutes",
+      questions: [
+        {
+          id: "q1",
+          title: "Décrire une roadmap produit data-driven sur 12 mois",
+          timeLimit: "2 min",
+        },
+        {
+          id: "q2",
+          title: "Comment mesurer le succès d'une fonctionnalité de paiement instantané ?",
+          timeLimit: "2 min",
+        },
+        {
+          id: "q3",
+          title: "Gestion d'équipe produit/tech en situation de crise",
+          timeLimit: "90 s",
+        },
+      ],
+    },
+    status: "qualified",
   },
   {
+    id: "candidate-sarah",
     name: "Sarah Ndiaye",
     role: "Compliance Officer",
     experience: "6 ans d'expérience · KYC & LCB-FT",
     score: 85,
     availability: "Disponible immédiatement",
     note: "Pilote la remédiation KYC pour portefeuille grands comptes.",
+    email: "sarah.ndiaye@compliance.io",
+    phone: "+33 6 23 45 67 89",
+    resumeUrl: "https://example.com/cv-sarah-ndiaye.pdf",
+    videoUrl: "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+    aiInterview: {
+      sessionDate: "6 octobre 2025",
+      duration: "21 minutes",
+      questions: [
+        {
+          id: "q1",
+          title: "Comment sécuriser un processus KYC corporate international ?",
+          timeLimit: "2 min",
+        },
+        {
+          id: "q2",
+          title: "Racontez une situation de remédiation critique",
+          timeLimit: "3 min",
+        },
+        {
+          id: "q3",
+          title: "Indicateurs clefs de pilotage conformité",
+          timeLimit: "90 s",
+        },
+      ],
+    },
+    status: "qualified",
   },
 ]
+
+const RECOMMENDATIONS_STORAGE_KEY = "success-pool-recommendations"
+
+const mergeWithSeed = (entries) => {
+  const merged = new Map()
+  RECOMMENDATION_SEED.forEach((item) => {
+    merged.set(item.candidateId, item)
+  })
+  entries
+    .filter((entry) => entry && entry.candidateId)
+    .forEach((entry) => {
+      merged.set(entry.candidateId, entry)
+    })
+  return Array.from(merged.values())
+}
+
+const loadRecommendationsFromStorage = () => {
+  if (typeof window === "undefined") {
+    return RECOMMENDATION_SEED
+  }
+
+  try {
+    const stored = window.localStorage.getItem(RECOMMENDATIONS_STORAGE_KEY)
+    if (!stored) {
+      persistRecommendationsToStorage(RECOMMENDATION_SEED)
+      return RECOMMENDATION_SEED
+    }
+    const parsed = JSON.parse(stored)
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      persistRecommendationsToStorage(RECOMMENDATION_SEED)
+      return RECOMMENDATION_SEED
+    }
+    const merged = mergeWithSeed(parsed)
+    persistRecommendationsToStorage(merged)
+    return merged
+  } catch (error) {
+    console.warn("Impossible de charger les recommandations stockées", error)
+    return RECOMMENDATION_SEED
+  }
+}
+
+const persistRecommendationsToStorage = (entries) => {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  try {
+    const merged = mergeWithSeed(entries ?? [])
+    window.localStorage.setItem(RECOMMENDATIONS_STORAGE_KEY, JSON.stringify(merged))
+  } catch (error) {
+    console.warn("Impossible d'enregistrer les recommandations", error)
+  }
+}
 
 const loginFormInitialState = {
   email: "",
@@ -89,14 +233,81 @@ export default function RecruiterPortal() {
   const [signupForm, setSignupForm] = useState(signupFormInitialState)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showSignupModal, setShowSignupModal] = useState(false)
+  const [showCandidatePoolModal, setShowCandidatePoolModal] = useState(false)
+  const [candidateDetailId, setCandidateDetailId] = useState(null)
+  const [candidateActionMessage, setCandidateActionMessage] = useState(null)
+  const [recommendationRegister, setRecommendationRegister] = useState(() => loadRecommendationsFromStorage())
+  const [candidateLimit, setCandidateLimit] = useState("all")
+  const [candidatePool, setCandidatePool] = useState(() => {
+    const registerSnapshot = loadRecommendationsFromStorage()
+    return recommendedCandidates.map((candidate) =>
+      registerSnapshot.some((entry) => entry.candidateId === candidate.id)
+        ? { ...candidate, status: "recommended" }
+        : candidate,
+    )
+  })
   const isRecruiterAuthenticated = user?.role === "recruiter"
   const isSubscribed = user?.isSubscribed ?? false
   const recruiterCompany = user?.company ?? "Société Générale"
+  const selectedCandidate = useMemo(
+    () => candidatePool.find((candidate) => candidate.id === candidateDetailId) ?? null,
+    [candidatePool, candidateDetailId],
+  )
+  const recommendedCount = useMemo(
+    () => candidatePool.filter((candidate) => candidate.status === "recommended").length,
+    [candidatePool],
+  )
+  const invitedCount = useMemo(
+    () => candidatePool.filter((candidate) => candidate.status === "invited").length,
+    [candidatePool],
+  )
+  const totalCandidates = candidatePool.length
+  const displayedCandidates = useMemo(() => {
+    if (candidateLimit === "all") {
+      return candidatePool
+    }
+
+    const limitValue = Number(candidateLimit)
+    if (Number.isNaN(limitValue) || limitValue <= 0) {
+      return candidatePool
+    }
+
+    return candidatePool.slice(0, limitValue)
+  }, [candidatePool, candidateLimit])
 
   const statusVariants = {
     success: "border-primary/40 bg-primary/10 text-primary",
     error: "border-destructive/40 bg-destructive/10 text-destructive",
     info: "border-accent/40 bg-accent/10 text-primary",
+  }
+
+  useEffect(() => {
+    persistRecommendationsToStorage(recommendationRegister)
+  }, [recommendationRegister])
+
+  useEffect(() => {
+    if (!candidateActionMessage) {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCandidateActionMessage(null)
+    }, 4000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [candidateActionMessage])
+
+  const openCandidatePool = () => {
+    setShowCandidatePoolModal(true)
+  }
+
+  const closeCandidatePool = () => {
+    setShowCandidatePoolModal(false)
+  }
+
+  const handleViewCandidate = (candidateId) => {
+    setCandidateDetailId(candidateId)
+    closeCandidatePool()
   }
 
   const handleCloseModals = () => {
@@ -126,6 +337,77 @@ export default function RecruiterPortal() {
     } else {
       setSignupForm((prev) => ({ ...prev, [name]: value }))
     }
+  }
+
+  const setCandidateStatus = (candidateId, status) => {
+    setCandidatePool((prev) => prev.map((candidate) => (candidate.id === candidateId ? { ...candidate, status } : candidate)))
+  }
+
+  const handleInviteCandidate = (candidate) => {
+    if (candidate.status === "recruited") {
+      setCandidateActionMessage({ type: "info", text: `${candidate.name} est déjà recruté.` })
+      return
+    }
+
+    if (candidate.status === "invited") {
+      setCandidateActionMessage({ type: "info", text: `${candidate.name} a déjà reçu une invitation à l'entretien final.` })
+      return
+    }
+
+    setCandidateStatus(candidate.id, "invited")
+    setCandidateActionMessage({
+      type: "success",
+      text: `${candidate.name} a été invité à l'entretien final. Un email de confirmation lui a été envoyé automatiquement.`,
+    })
+  }
+
+  const handleRecruitCandidate = (candidate) => {
+    if (candidate.status === "recruited") {
+      setCandidateActionMessage({ type: "info", text: `${candidate.name} est déjà marqué comme recruté.` })
+      return
+    }
+
+    setCandidateStatus(candidate.id, "recruited")
+    setCandidateActionMessage({
+      type: "success",
+      text: `${candidate.name} est désormais marqué comme recruté pour ${recruiterCompany}.`,
+    })
+  }
+
+  const handleRecommendCandidate = (candidate) => {
+    if (candidate.status === "recruited") {
+      setCandidateActionMessage({
+        type: "info",
+        text: `${candidate.name} est déjà recruté chez ${recruiterCompany}. Partagez un autre profil.`,
+      })
+      return
+    }
+
+    if (recommendationRegister.some((entry) => entry.candidateId === candidate.id)) {
+      setCandidateStatus(candidate.id, "recommended")
+      setCandidateActionMessage({
+        type: "info",
+        text: `${candidate.name} est déjà partagé avec les autres recruteurs Success Pool.`,
+      })
+      return
+    }
+
+    const newRecord = {
+      candidateId: candidate.id,
+      name: candidate.name,
+      role: candidate.role,
+      score: candidate.score,
+      recommendedFor: candidate.role,
+      recommendedBy: recruiterCompany,
+      recommendedAt: new Date().toISOString(),
+    }
+
+    setCandidateStatus(candidate.id, "recommended")
+    setRecommendationRegister((prev) => [...prev, newRecord])
+    setCandidateActionMessage({
+      type: "success",
+      text: `${candidate.name} a été recommandé aux autres recruteurs Success Pool.`,
+    })
   }
 
   const handleLoginSubmit = (event) => {
@@ -247,32 +529,50 @@ export default function RecruiterPortal() {
 
               {isRecruiterAuthenticated && (
                 <div className="space-y-5 rounded-3xl border border-border/60 bg-white/90 p-6 shadow-sm backdrop-blur">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-                      Recommandés par {recruiterCompany}
-                    </p>
-                    <h3 className="text-xl font-semibold text-foreground">Candidats mis en avant</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Trois talents présélectionnés par Success Pool pour vos besoins prioritaires.
-                    </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
+                        Recommandés par {recruiterCompany}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-semibold text-foreground">Candidats engagés</h3>
+                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary">
+                          {totalCandidates}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {totalCandidates} talents présélectionnés par Success Pool pour vos besoins prioritaires.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openCandidatePool}
+                      className="inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+                    >
+                      <Users size={16} /> Voir les candidats ({totalCandidates}) <ChevronDown size={14} />
+                    </button>
                   </div>
 
-                  <div className="space-y-4">
-                    {recommendedCandidates.map((candidate) => (
-                      <div key={candidate.name} className="rounded-2xl border border-border/60 bg-secondary/60 px-4 py-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-foreground">{candidate.name}</p>
-                          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-                            Score {candidate.score}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{candidate.role}</p>
-                        <p className="text-xs text-muted-foreground">{candidate.experience}</p>
-                        <p className="text-xs text-muted-foreground">{candidate.note}</p>
-                        <p className="pt-2 text-xs font-medium text-primary">{candidate.availability}</p>
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 font-medium text-primary">
+                      <CalendarCheck size={14} /> Invitations entretien final : {invitedCount}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 font-medium text-primary">
+                      <Share2 size={14} /> Recommandés vers d'autres équipes : {recommendedCount}
+                    </span>
                   </div>
+
+                  {candidateActionMessage && (
+                    <div
+                      className={`rounded-2xl border px-4 py-3 text-xs font-medium ${
+                        candidateActionMessage.type === "success"
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-accent/40 bg-accent/10 text-primary"
+                      }`}
+                    >
+                      {candidateActionMessage.text}
+                    </div>
+                  )}
 
                   <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/10 px-4 py-3 text-xs text-primary">
                     {isSubscribed
@@ -560,6 +860,31 @@ export default function RecruiterPortal() {
           </form>
         </Modal>
       )}
+
+      {selectedCandidate && (
+        <CandidateDetailModal
+          candidate={selectedCandidate}
+          onClose={() => setCandidateDetailId(null)}
+          onInvite={() => handleInviteCandidate(selectedCandidate)}
+          onRecruit={() => handleRecruitCandidate(selectedCandidate)}
+          onRecommend={() => handleRecommendCandidate(selectedCandidate)}
+        />
+      )}
+
+      {showCandidatePoolModal && (
+        <CandidatePoolModal
+          candidates={displayedCandidates}
+          candidateActionMessage={candidateActionMessage}
+          candidateLimit={candidateLimit}
+          onLimitChange={setCandidateLimit}
+          onClose={closeCandidatePool}
+          onViewProfile={handleViewCandidate}
+          onInvite={handleInviteCandidate}
+          onRecruit={handleRecruitCandidate}
+          onRecommend={handleRecommendCandidate}
+          totalAvailable={candidatePool.length}
+        />
+      )}
     </main>
   )
 }
@@ -585,6 +910,324 @@ function Modal({ onClose, className = "", children }) {
           <X size={18} strokeWidth={2} />
         </button>
         {children}
+      </div>
+    </div>
+  )
+}
+
+function CandidateDetailModal({ candidate, onClose, onInvite, onRecruit, onRecommend }) {
+  const isInvited = candidate.status === "invited"
+  const isRecruited = candidate.status === "recruited"
+  const isRecommended = candidate.status === "recommended"
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-3 py-6 sm:px-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-h-[calc(100vh-3rem)] max-w-4xl overflow-y-auto rounded-4xl border border-border/60 bg-white/98 p-6 shadow-2xl backdrop-blur-md sm:p-9"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:border-primary hover:text-primary"
+          aria-label="Fermer la fiche candidat"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+
+        <div className="flex flex-col gap-6">
+          <header className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Profil IA préqualifié</p>
+                <h2 className="text-2xl font-semibold text-foreground sm:text-3xl">{candidate.name}</h2>
+                <p className="text-sm text-muted-foreground">{candidate.role}</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                  Score IA {candidate.score}
+                </span>
+                <span className="text-xs text-muted-foreground">{candidate.experience}</span>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">{candidate.note}</p>
+          </header>
+
+          <section className="grid gap-4 rounded-3xl border border-border/60 bg-secondary/60 p-4 sm:grid-cols-2">
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary">Coordonnées</p>
+              <div className="flex items-center gap-2">
+                <Mail size={16} className="text-primary" />
+                <a href={`mailto:${candidate.email}`} className="text-foreground hover:text-primary">
+                  {candidate.email}
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone size={16} className="text-primary" />
+                <a href={`tel:${candidate.phone}`} className="text-foreground hover:text-primary">
+                  {candidate.phone}
+                </a>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary">Documents</p>
+              <a
+                href={candidate.resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-primary/50 bg-white px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
+              >
+                <Download size={16} /> Télécharger le CV
+              </a>
+              <p className="text-xs text-muted-foreground/80">CV validé par Success Pool · format PDF</p>
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-3xl border border-border/60 bg-white px-4 py-4">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.26em] text-primary">
+              <Video size={16} /> Replay entretien IA
+            </p>
+            <div className="overflow-hidden rounded-2xl border border-border/60 bg-black/80">
+              <video controls preload="metadata" className="h-52 w-full sm:h-72">
+                <source src={candidate.videoUrl} type="video/mp4" />
+                Votre navigateur ne supporte pas la lecture vidéo.
+              </video>
+            </div>
+            <div className="rounded-2xl border border-border/40 bg-secondary/60 px-4 py-3 text-xs text-muted-foreground">
+              <p>{candidate.aiInterview.sessionDate} · Durée {candidate.aiInterview.duration}</p>
+              <p className="mt-1 font-medium text-foreground">
+                Questions générées par l'IA · chaque réponse est limitée dans le temps
+              </p>
+              <div className="mt-2 space-y-2">
+                {candidate.aiInterview.questions.map((question) => (
+                  <div key={question.id} className="rounded-2xl border border-border/40 bg-white px-3 py-2">
+                    <p className="text-sm font-medium text-foreground">{question.title}</p>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Temps limite : {question.timeLimit}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-3xl border border-border/60 bg-secondary/60 px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary">Actions recruteur</p>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+              {isInvited && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-primary">
+                  <Send size={13} /> Invitation envoyée
+                </span>
+              )}
+              {isRecruited && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-600">
+                  <CheckCircle2 size={13} /> Recruté
+                </span>
+              )}
+              {isRecommended && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-primary">
+                  <Share2 size={13} /> Partagé
+                </span>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={onInvite}
+                disabled={isInvited || isRecruited}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/60 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Send size={16} /> Inviter à l'entretien final
+              </button>
+              <button
+                type="button"
+                onClick={onRecruit}
+                disabled={isRecruited}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <CheckCircle2 size={16} /> Marquer comme recruté
+              </button>
+              <button
+                type="button"
+                onClick={onRecommend}
+                disabled={isRecommended || isRecruited}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Share2 size={16} /> Recommander à un autre recruteur
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
+              >
+                <X size={16} /> Fermer la fiche
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CandidatePoolModal({
+  candidates,
+  candidateActionMessage,
+  candidateLimit,
+  onLimitChange,
+  onClose,
+  onViewProfile,
+  onInvite,
+  onRecruit,
+  onRecommend,
+  totalAvailable,
+}) {
+  const limitOptions = [{ value: "all", label: "Tous" }]
+  for (let index = 1; index <= totalAvailable; index += 1) {
+    limitOptions.push({ value: String(index), label: `Top ${index}` })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-3 py-6 sm:px-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-h-[calc(100vh-3rem)] max-w-5xl overflow-y-auto rounded-4xl border border-border/60 bg-white/98 p-6 shadow-2xl backdrop-blur-md sm:p-8"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:border-primary hover:text-primary"
+          aria-label="Fermer la liste des candidats"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+
+        <header className="mb-6 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Vivier Success Pool</p>
+              <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Candidats recommandés</h2>
+              <p className="text-sm text-muted-foreground">{totalAvailable} profils présélectionnés pour vos missions prioritaires.</p>
+            </div>
+            <label className="flex items-center gap-3 rounded-full border border-border/60 bg-secondary/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Filtrer par nombre
+              <select
+                value={candidateLimit}
+                onChange={(event) => onLimitChange(event.target.value)}
+                className="rounded-full border border-border/40 bg-white px-3 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+              >
+                {limitOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {candidateActionMessage && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-xs font-medium ${
+                candidateActionMessage.type === "success"
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-accent/40 bg-accent/10 text-primary"
+              }`}
+            >
+              {candidateActionMessage.text}
+            </div>
+          )}
+        </header>
+
+        <div className="space-y-4">
+          {candidates.map((candidate) => {
+            const isInvited = candidate.status === "invited"
+            const isRecommended = candidate.status === "recommended"
+            const isRecruited = candidate.status === "recruited"
+
+            return (
+              <article key={candidate.id} className="space-y-3 rounded-3xl border border-border/60 bg-secondary/60 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{candidate.name}</p>
+                    <p className="text-xs text-muted-foreground">{candidate.role}</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                    Score {candidate.score}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">{candidate.experience}</p>
+                <p className="text-xs text-muted-foreground">{candidate.note}</p>
+                <p className="text-xs font-medium text-primary">{candidate.availability}</p>
+
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                  {isInvited && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/15 px-2 py-1 text-primary">
+                      <Send size={12} /> Invité au final
+                    </span>
+                  )}
+                  {isRecommended && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/15 px-2 py-1 text-primary">
+                      <Share2 size={12} /> Partagé aux équipes
+                    </span>
+                  )}
+                  {isRecruited && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-600">
+                      <CheckCircle2 size={12} /> Recruté
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onViewProfile(candidate.id)}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border/80 bg-white px-3 py-2 text-xs font-semibold text-foreground transition hover:border-primary hover:text-primary sm:flex-none sm:px-4"
+                  >
+                    <FileText size={14} /> Consulter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onInvite(candidate)}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-primary/60 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground sm:flex-none sm:px-4"
+                    disabled={isInvited || isRecruited}
+                  >
+                    <Send size={14} /> Inviter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRecruit(candidate)}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-500 hover:text-white sm:flex-none sm:px-4"
+                    disabled={isRecruited}
+                  >
+                    <CheckCircle2 size={14} /> Recruter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRecommend(candidate)}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-primary px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground sm:flex-none sm:px-4"
+                    disabled={isRecruited || isRecommended}
+                  >
+                    <Share2 size={14} /> Recommander
+                  </button>
+                </div>
+              </article>
+            )
+          })}
+
+          {candidates.length === 0 && (
+            <p className="rounded-3xl border border-dashed border-border/60 bg-secondary/40 px-4 py-6 text-center text-sm text-muted-foreground">
+              Aucun candidat à afficher pour ce filtre. Ajustez la sélection pour explorer le vivier complet.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

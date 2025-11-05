@@ -18,7 +18,10 @@ export default function Navbar() {
   const { user, logout } = useAuth()
 
   const isRecruiter = user?.role === "recruiter"
-  const recruiterLinks = [{ label: "Mes offres", to: "/mes-offres", type: "route" }]
+  const recruiterLinks = [
+    { label: "Mes offres", to: "/mes-offres", type: "route" },
+    { label: "Recommandations", to: "/recommandations", type: "route" },
+  ]
   const activeLinks = isRecruiter ? recruiterLinks : primaryLinks
 
   const closeMenu = () => setIsOpen(false)

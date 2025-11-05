@@ -1,0 +1,38 @@
+export const RECOMMENDATION_SEED = [
+  {
+    candidateId: "candidate-lina",
+    name: "Lina Moreau",
+    role: "Lead Data Scientist Anti-fraude",
+    score: 92,
+    recommendedFor: "Head of AI Risk · Direction des Risques",
+    recommendedBy: "Société Générale",
+    recommendedAt: "2025-10-28T09:45:00+02:00",
+  },
+  {
+    candidateId: "candidate-sarah",
+    name: "Sarah Ndiaye",
+    role: "Compliance Officer Senior",
+    score: 85,
+    recommendedFor: "Responsable Conformité Corporate · Pôle Wholesale Banking",
+    recommendedBy: "Société Générale",
+    recommendedAt: "2025-10-19T14:20:00+02:00",
+  },
+  {
+    candidateId: "candidate-amelie-bpce",
+    name: "Amélie Carpentier",
+    role: "Lead UX Banking",
+    score: 87,
+    recommendedFor: "Lead UX Omnicanal · BPCE Digital & Payments",
+    recommendedBy: "BPCE",
+    recommendedAt: "2025-10-25T11:35:00+02:00",
+  },
+  {
+    candidateId: "candidate-thomas-bpce",
+    name: "Thomas Garnier",
+    role: "Responsable Data Engineering",
+    score: 89,
+    recommendedFor: "Head of Data Platform · BPCE SI",
+    recommendedBy: "BPCE",
+    recommendedAt: "2025-10-17T16:10:00+02:00",
+  },
+]
