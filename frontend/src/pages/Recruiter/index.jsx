@@ -59,6 +59,11 @@ const recommendedCandidates = [
     score: 92,
     availability: "Disponible sous 1 mois",
     note: "Ex-Lead Data chez Crédit Agricole, pilotage de projets anti-fraude IA.",
+    scoreDetails: [
+      { label: "Matching mission", value: "96% sur les besoins Risk & Analytics" },
+      { label: "Expérience", value: "7 ans en IA anti-fraude bancaire" },
+      { label: "Leadership", value: "Management de 8 data scientists" },
+    ],
     email: "lina.moreau@talents.ai",
     phone: "+33 6 45 67 89 12",
     resumeUrl: "https://example.com/cv-lina-moreau.pdf",
@@ -94,6 +99,11 @@ const recommendedCandidates = [
     score: 88,
     availability: "Préavis de 2 mois",
     note: "Responsable lancement app paiement instantané SG Afrique.",
+    scoreDetails: [
+      { label: "Matching mission", value: "91% sur les parcours produits digitaux" },
+      { label: "Impact produit", value: "Lancement de 3 apps paiements" },
+      { label: "Stakeholders", value: "Pilotage de squads produit/tech" },
+    ],
     email: "yanis.belkacem@productlead.io",
     phone: "+33 6 98 76 54 32",
     resumeUrl: "https://example.com/cv-yanis-belkacem.pdf",
@@ -129,6 +139,11 @@ const recommendedCandidates = [
     score: 85,
     availability: "Disponible immédiatement",
     note: "Pilote la remédiation KYC pour portefeuille grands comptes.",
+    scoreDetails: [
+      { label: "Matching mission", value: "92% sur la conformité corporate" },
+      { label: "Programmes KYC", value: "8 dossiers de remédiation livrés" },
+      { label: "Langues", value: "FR / EN / SP pour suivi international" },
+    ],
     email: "sarah.ndiaye@compliance.io",
     phone: "+33 6 23 45 67 89",
     resumeUrl: "https://example.com/cv-sarah-ndiaye.pdf",
@@ -397,9 +412,16 @@ export default function RecruiterPortal() {
       name: candidate.name,
       role: candidate.role,
       score: candidate.score,
+      scoreDetails: candidate.scoreDetails ?? [],
       recommendedFor: candidate.role,
       recommendedBy: recruiterCompany,
       recommendedAt: new Date().toISOString(),
+      availability: candidate.availability ?? "",
+      candidateNotes: candidate.note ?? "",
+      contactEmail: candidate.email ?? "",
+      contactPhone: candidate.phone ?? "",
+      status: "recommended",
+      offer: null,
     }
 
     setCandidateStatus(candidate.id, "recommended")
@@ -606,7 +628,9 @@ export default function RecruiterPortal() {
                       className="group rounded-3xl border border-border/50 bg-secondary/60 px-5 py-6 text-center shadow-lg shadow-primary/5 transition hover:border-primary/40 hover:shadow-primary/20"
                     >
                       <p className="text-3xl font-semibold text-foreground md:text-4xl">{metric.value}</p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.26em] text-muted-foreground">{metric.label}</p>
+                      <p className="mt-2 text-[0.7rem] font-medium uppercase tracking-[0.12em] leading-5 text-muted-foreground wrap-break-word">
+                        {metric.label}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -919,6 +943,7 @@ function CandidateDetailModal({ candidate, onClose, onInvite, onRecruit, onRecom
   const isInvited = candidate.status === "invited"
   const isRecruited = candidate.status === "recruited"
   const isRecommended = candidate.status === "recommended"
+  const scoreDetails = Array.isArray(candidate.scoreDetails) ? candidate.scoreDetails : []
 
   return (
     <div
@@ -950,9 +975,19 @@ function CandidateDetailModal({ candidate, onClose, onInvite, onRecruit, onRecom
               </div>
               <div className="flex flex-col items-end gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-                  Score IA {candidate.score}
+                  Score {candidate.score}
                 </span>
-                <span className="text-xs text-muted-foreground">{candidate.experience}</span>
+                {scoreDetails.length > 0 && (
+                  <ul className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+                    {scoreDetails.map((detail, index) => (
+                      <li key={`${detail.label}-${index}`} className="flex items-center gap-2 text-right">
+                        <span className="font-medium text-foreground">{detail.label}</span>
+                        <span>{detail.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {candidate.experience && <span className="text-xs text-muted-foreground">{candidate.experience}</span>}
               </div>
             </div>
             <p className="text-sm text-muted-foreground">{candidate.note}</p>
@@ -1085,9 +1120,25 @@ function CandidatePoolModal({
   onRecommend,
   totalAvailable,
 }) {
-  const limitOptions = [{ value: "all", label: "Tous" }]
-  for (let index = 1; index <= totalAvailable; index += 1) {
-    limitOptions.push({ value: String(index), label: `Top ${index}` })
+  const isAllSelected = candidateLimit === "all"
+  const numericLimitValue = isAllSelected ? "" : String(candidateLimit)
+
+  const handleLimitInput = (event) => {
+    const rawValue = event.target.value.trim()
+
+    if (rawValue === "") {
+      onLimitChange("all")
+      return
+    }
+
+    const parsedValue = Number(rawValue)
+    if (Number.isNaN(parsedValue) || parsedValue <= 0) {
+      onLimitChange("all")
+      return
+    }
+
+    const clampedValue = Math.min(parsedValue, totalAvailable)
+    onLimitChange(String(clampedValue))
   }
 
   return (
@@ -1119,17 +1170,29 @@ function CandidatePoolModal({
             </div>
             <label className="flex items-center gap-3 rounded-full border border-border/60 bg-secondary/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Filtrer par nombre
-              <select
-                value={candidateLimit}
-                onChange={(event) => onLimitChange(event.target.value)}
-                className="rounded-full border border-border/40 bg-white px-3 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
-              >
-                {limitOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onLimitChange("all")}
+                  className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                    isAllSelected
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border/70 bg-white text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary"
+                  }`}
+                >
+                  Tous
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalAvailable}
+                  step={1}
+                  value={numericLimitValue}
+                  onChange={handleLimitInput}
+                  placeholder={`Top ${Math.min(3, totalAvailable)}`}
+                  className="w-24 rounded-full border border-border/40 bg-white px-3 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
             </label>
           </div>
 
