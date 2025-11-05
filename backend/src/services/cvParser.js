@@ -101,3 +101,4 @@ async function extractCvData(cvText) {
 module.exports = { extractCvData }
 
 
+

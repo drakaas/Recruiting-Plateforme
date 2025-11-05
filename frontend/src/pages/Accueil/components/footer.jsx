@@ -6,7 +6,7 @@ const footerLinks = [
     title: "Candidats",
     items: [
       { label: "Chercher un emploi", href: "#" },
-      { label: "Mon profil", href: "#" },
+      { label: "Mon profil", href: "/candidat/creer-profil" },
       { label: "Mes candidatures", href: "#" },
       { label: "Blog", href: "#" },
     ],

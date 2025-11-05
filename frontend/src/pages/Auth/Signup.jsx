@@ -1,9 +1,11 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+import { API_BASE_URL } from "../../utils/config"
 import { Mail, Lock, Eye, EyeOff, Zap, CheckCircle, Sparkles, FileUp } from "lucide-react"
 import successPoolLogo from "../../assets/success-pool-logo.svg"
 
 export default function SignupPage() {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -14,6 +16,7 @@ export default function SignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
+  const [processingMessage, setProcessingMessage] = useState("")
 
   const validateForm = () => {
     const newErrors = {}
@@ -99,12 +102,36 @@ export default function SignupPage() {
     if (!validateForm()) return
 
     setIsLoading(true)
-    setTimeout(() => {
+    setProcessingMessage("Traitement du CV en cours...")
+
+    try {
+      const fd = new FormData()
+      if (formData.cv) fd.append('cv', formData.cv)
+
+      const res = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/cv/extract`, {
+        method: 'POST',
+        body: fd,
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(errText || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
       // eslint-disable-next-line no-console
-      console.log("Inscription avec:", { email: formData.email, cv: formData.cv?.name })
+      console.log('CV extract response:', data)
+
       setIsLoading(false)
+      setProcessingMessage("")
       setFormData({ email: "", password: "", confirmPassword: "", cv: null })
-    }, 1500)
+      navigate('/candidat/creer-profil', { replace: true, state: { parsed: data?.parsed || null } })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('CV extract failed:', err)
+      setIsLoading(false)
+      setProcessingMessage("")
+      navigate('/candidat/creer-profil', { replace: true })
+    }
   }
 
   return (
@@ -292,7 +319,7 @@ export default function SignupPage() {
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground font-semibold py-3 rounded-lg hover:shadow-lg hover:shadow-primary/25 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed mt-6"
               >
-                {isLoading ? "Création en cours..." : "Créer mon compte"}
+                {isLoading ? (processingMessage || "Création en cours...") : "Créer mon compte"}
               </button>
             </form>
 
