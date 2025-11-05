@@ -174,6 +174,7 @@ const recommendedCandidates = [
 ]
 
 const RECOMMENDATIONS_STORAGE_KEY = "success-pool-recommendations"
+const API_COMPANIES_PATH = "/api/companies"
 
 const mergeWithSeed = (entries) => {
   const merged = new Map()
@@ -213,6 +214,134 @@ const loadRecommendationsFromStorage = () => {
   }
 }
 
+// Removed local seed/storage to rely strictly on backend
+
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    if (!file) return resolve("")
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+function resolveApiBases() {
+  const bases = []
+  const envBase = typeof window !== "undefined" ? (window?.VITE_API_BASE || import.meta?.env?.VITE_API_BASE) : undefined
+  if (envBase) bases.push(String(envBase))
+  // Prefer backend default port first in dev
+  bases.push("http://localhost:4000")
+  if (typeof window !== "undefined" && window.location?.origin) bases.push(window.location.origin)
+  return Array.from(new Set(bases))
+}
+
+async function fetchCompaniesFromApi() {
+  const bases = resolveApiBases()
+  for (const base of bases) {
+    try {
+      const url = base.replace(/\/$/, "") + API_COMPANIES_PATH
+      const res = await fetch(url)
+      if (!res.ok) continue
+      return await res.json()
+    } catch (_e) {
+      // try next base
+    }
+  }
+  return null
+}
+
+async function createCompanyViaApi(company) {
+  const bases = resolveApiBases()
+  for (const base of bases) {
+    try {
+      const url = base.replace(/\/$/, "") + API_COMPANIES_PATH
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: company.name,
+          email: company.email,
+          address: company.address,
+          description: company.description,
+          imageUrl: company.imageDataUrl || "",
+        }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      return data?.id || null
+    } catch (_e) {
+      // try next base
+    }
+  }
+  return null
+}
+
+async function createRecruiterViaApi({ email, password, companyId, firstName, lastName, contactNumber }) {
+  const bases = resolveApiBases()
+  for (const base of bases) {
+    try {
+      const url = base.replace(/\/$/, "") + "/api/recruiters"
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          companyId,
+          firstName,
+          lastName,
+          contactNumber,
+        }),
+      })
+      if (res.status === 409) return { error: "conflict" }
+      if (!res.ok) continue
+      const data = await res.json()
+      return { id: data?.id || null }
+    } catch {}
+  }
+  return { error: "unreachable" }
+}
+
+async function loginViaApi({ email, password }) {
+  const bases = resolveApiBases()
+  for (const base of bases) {
+    try {
+      const url = base.replace(/\/$/, "") + "/api/auth/login"
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      return { base, data }
+    } catch {}
+  }
+  return null
+}
+
+async function getUserById({ base, id }) {
+  try {
+    const url = base.replace(/\/$/, "") + "/api/users/" + encodeURIComponent(id)
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+async function getRecruiterById({ base, id }) {
+  try {
+    const url = base.replace(/\/$/, "") + "/api/recruiters/" + encodeURIComponent(id)
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 const persistRecommendationsToStorage = (entries) => {
   if (typeof window === "undefined") {
     return
@@ -232,12 +361,11 @@ const loginFormInitialState = {
 }
 
 const signupFormInitialState = {
-  companyName: "",
+  companyId: "",
   recruiterLastName: "",
   recruiterFirstName: "",
   companyEmail: "",
   contactNumber: "",
-  profilePhoto: null,
   password: "",
 }
 
@@ -246,6 +374,17 @@ export default function RecruiterPortal() {
   const [statusMessage, setStatusMessage] = useState(null)
   const [loginForm, setLoginForm] = useState(loginFormInitialState)
   const [signupForm, setSignupForm] = useState(signupFormInitialState)
+  const [companies, setCompanies] = useState([])
+  const [showCompanyModal, setShowCompanyModal] = useState(false)
+  const [newCompany, setNewCompany] = useState({
+    name: "",
+    email: "",
+    address: "",
+    description: "",
+    imageFile: null,
+    imageDataUrl: "",
+  })
+  const [dndState, setDndState] = useState({ isDragging: false })
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showSignupModal, setShowSignupModal] = useState(false)
   const [showCandidatePoolModal, setShowCandidatePoolModal] = useState(false)
@@ -263,7 +402,13 @@ export default function RecruiterPortal() {
   })
   const isRecruiterAuthenticated = user?.role === "recruiter"
   const isSubscribed = user?.isSubscribed ?? false
-  const recruiterCompany = user?.company ?? "Société Générale"
+  const recruiterCompanyName = (() => {
+    const company = user?.company
+    if (!company) return "Société Générale"
+    if (typeof company === "string") return company
+    if (typeof company === "object") return company.name || "Société Générale"
+    return "Société Générale"
+  })()
   const selectedCandidate = useMemo(
     () => candidatePool.find((candidate) => candidate.id === candidateDetailId) ?? null,
     [candidatePool, candidateDetailId],
@@ -299,6 +444,28 @@ export default function RecruiterPortal() {
   useEffect(() => {
     persistRecommendationsToStorage(recommendationRegister)
   }, [recommendationRegister])
+
+  useEffect(() => {
+    let mounted = true
+    fetchCompaniesFromApi().then((res) => {
+      if (!mounted) return
+      if (Array.isArray(res)) {
+        // map backend _id to id for frontend usage
+        const mapped = res.map((c) => ({
+          id: c._id || c.id,
+          name: c.name,
+          email: c.email,
+          address: c.address || "",
+          description: c.description || "",
+          imageDataUrl: c.imageUrl || "",
+        }))
+        setCompanies(mapped)
+      }
+    })
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!candidateActionMessage) {
@@ -346,12 +513,53 @@ export default function RecruiterPortal() {
   }
 
   const handleSignupChange = (event) => {
-    const { name, value, files } = event.target
-    if (name === "profilePhoto") {
-      setSignupForm((prev) => ({ ...prev, profilePhoto: files?.[0] ?? null }))
-    } else {
+    const { name, value } = event.target
+    // top-level simple fields
+    if (["recruiterLastName", "recruiterFirstName", "companyEmail", "contactNumber", "password", "companyId"].includes(name)) {
       setSignupForm((prev) => ({ ...prev, [name]: value }))
+      return
     }
+  }
+
+  const handleNewCompanyImage = async (file) => {
+    if (!file) {
+      setNewCompany((prev) => ({ ...prev, imageFile: null, imageDataUrl: "" }))
+      return
+    }
+    const isImage = file.type?.startsWith("image/")
+    const isOkSize = file.size <= 5 * 1024 * 1024
+    if (!isImage || !isOkSize) {
+      setStatusMessage({
+        type: "error",
+        text: !isImage ? "Le fichier doit être une image." : "L'image ne doit pas dépasser 5 Mo.",
+      })
+      return
+    }
+    const dataUrl = await fileToDataUrl(file)
+    setNewCompany((prev) => ({ ...prev, imageFile: file, imageDataUrl: dataUrl }))
+  }
+
+  const handleCompanyDrop = async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDndState({ isDragging: false })
+    // Check if a company card was dropped
+    const droppedCompanyId = event.dataTransfer?.getData("company/id")
+    if (droppedCompanyId) {
+      setSignupForm((prev) => ({ ...prev, companyId: droppedCompanyId }))
+      setShowCompanyModal(false)
+      setStatusMessage({ type: "success", text: "Entreprise sélectionnée depuis la base." })
+      return
+    }
+    // Fallback to file drop
+    const file = event.dataTransfer?.files?.[0]
+    if (file) await handleNewCompanyImage(file)
+  }
+
+  const handleCompanyDrag = (event, isDragging) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDndState({ isDragging })
   }
 
   const setCandidateStatus = (candidateId, status) => {
@@ -385,7 +593,7 @@ export default function RecruiterPortal() {
     setCandidateStatus(candidate.id, "recruited")
     setCandidateActionMessage({
       type: "success",
-      text: `${candidate.name} est désormais marqué comme recruté pour ${recruiterCompany}.`,
+      text: `${candidate.name} est désormais marqué comme recruté pour ${recruiterCompanyName}.`,
     })
   }
 
@@ -393,7 +601,7 @@ export default function RecruiterPortal() {
     if (candidate.status === "recruited") {
       setCandidateActionMessage({
         type: "info",
-        text: `${candidate.name} est déjà recruté chez ${recruiterCompany}. Partagez un autre profil.`,
+        text: `${candidate.name} est déjà recruté chez ${recruiterCompanyName}. Partagez un autre profil.`,
       })
       return
     }
@@ -414,7 +622,7 @@ export default function RecruiterPortal() {
       score: candidate.score,
       scoreDetails: candidate.scoreDetails ?? [],
       recommendedFor: candidate.role,
-      recommendedBy: recruiterCompany,
+      recommendedBy: recruiterCompanyName,
       recommendedAt: new Date().toISOString(),
       availability: candidate.availability ?? "",
       candidateNotes: candidate.note ?? "",
@@ -432,39 +640,70 @@ export default function RecruiterPortal() {
     })
   }
 
-  const handleLoginSubmit = (event) => {
+  const handleLoginSubmit = async (event) => {
     event.preventDefault()
     setStatusMessage(null)
-    try {
-      const account = login(loginForm.email, loginForm.password)
-      setLoginForm(loginFormInitialState)
-      handleCloseModals()
-
-      if (account.role === "recruiter") {
-        setStatusMessage({
-          type: "success",
-          text: "Authentification réussie. Bienvenue dans l'espace recruteur Success Pool.",
-        })
-      } else {
-        setStatusMessage({
-          type: "info",
-          text: "Compte candidat connecté. Cet espace reste réservé aux recruteurs. L'espace candidat arrive très prochainement.",
-        })
-      }
-    } catch (error) {
-      setStatusMessage({
-        type: "error",
-        text: error?.message ?? "Impossible de vous connecter. Merci de vérifier vos identifiants.",
-      })
+    const creds = { email: loginForm.email, password: loginForm.password }
+    const auth = await loginViaApi(creds)
+    if (!auth) {
+      setStatusMessage({ type: "error", text: "Identifiants invalides." })
+      return
     }
+    const isRecruiter = auth?.data?.role === 'recruiter'
+    const userDoc = isRecruiter
+      ? await getRecruiterById({ base: auth.base, id: auth.data.id })
+      : await getUserById({ base: auth.base, id: auth.data.id })
+    if (!userDoc) {
+      setStatusMessage({ type: "error", text: "Impossible de récupérer le profil utilisateur." })
+      return
+    }
+    // Ensure recruiter role
+    if (!isRecruiter && userDoc.role !== 'recruiter') {
+      setStatusMessage({ type: "info", text: "Cet espace est réservé aux recruteurs." })
+      return
+    }
+    // Compose auth user object for context
+    const authUser = {
+      id: userDoc._id || auth.data.id,
+      email: userDoc.email,
+      role: isRecruiter ? 'recruiter' : userDoc.role,
+      company: userDoc.company || null,
+      fullName: [userDoc?.profile?.firstName, userDoc?.profile?.lastName].filter(Boolean).join(' ') || userDoc.email,
+      isSubscribed: false,
+    }
+    login(authUser)
+    setLoginForm(loginFormInitialState)
+    handleCloseModals()
+    setStatusMessage({ type: "success", text: "Authentification réussie. Bienvenue dans l'espace recruteur." })
   }
 
-  const handleSignupSubmit = (event) => {
+  const handleSignupSubmit = async (event) => {
     event.preventDefault()
     setStatusMessage(null)
+    if (!signupForm.companyId) {
+      setStatusMessage({ type: "error", text: "Sélectionnez une entreprise existante ou ajoutez-en une." })
+      return
+    }
+    const email = signupForm.companyEmail
+    const password = signupForm.password
+    const companyId = signupForm.companyId
+    const firstName = signupForm.recruiterFirstName
+    const lastName = signupForm.recruiterLastName
+    const contactNumber = signupForm.contactNumber
+
+    const result = await createRecruiterViaApi({ email, password, companyId, firstName, lastName, contactNumber })
+    if (result?.error === 'conflict') {
+      setStatusMessage({ type: "info", text: "Un compte existe déjà avec cet email. Veuillez vous connecter." })
+      return
+    }
+    if (!result?.id) {
+      setStatusMessage({ type: "error", text: "Création du compte recruteur impossible." })
+      return
+    }
+
     setStatusMessage({
       type: "success",
-      text: "Votre demande d'accès recruteur a été enregistrée. Notre équipe vous recontactera sous 24h.",
+      text: "Votre compte recruteur a été créé. Vous pouvez maintenant vous connecter.",
     })
     setSignupForm(signupFormInitialState)
     handleCloseModals()
@@ -487,30 +726,7 @@ export default function RecruiterPortal() {
             </div>
           )}
 
-          {user && (
-            <div className="mb-10 flex flex-col justify-between gap-3 rounded-3xl border border-border/70 bg-white/90 p-5 shadow-sm backdrop-blur">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  Connecté en tant que {user.role === "recruiter" ? "recruteur démo" : "candidat démo"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {user.fullName} · {user.email}
-                </p>
-                {user.role !== "recruiter" && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Cet espace reste réservé aux recruteurs Success Pool. Conservez ce compte pour tester l'expérience candidat dès qu'elle sera disponible.
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="self-start rounded-full border border-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary transition hover:bg-primary hover:text-primary-foreground"
-              >
-                Se déconnecter
-              </button>
-            </div>
-          )}
+          {/* User banner intentionally removed */}
 
           <div className="grid gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <div className="space-y-10">
@@ -554,7 +770,7 @@ export default function RecruiterPortal() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-                        Recommandés par {recruiterCompany}
+                        Recommandés par {recruiterCompanyName}
                       </p>
                       <div className="flex items-center gap-2">
                         <h3 className="text-xl font-semibold text-foreground">Candidats engagés</h3>
@@ -716,6 +932,7 @@ export default function RecruiterPortal() {
                   onChange={handleLoginChange}
                   placeholder="prenom.nom@entreprise.com"
                   className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -732,6 +949,7 @@ export default function RecruiterPortal() {
                   onChange={handleLoginChange}
                   placeholder="••••••••"
                   className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                  autoComplete="current-password"
                   required
                 />
               </div>
@@ -759,21 +977,40 @@ export default function RecruiterPortal() {
           </div>
           <form onSubmit={handleSignupSubmit} className="space-y-4 text-sm">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block sm:col-span-2">
-                <span className="mb-1.5 block font-medium text-muted-foreground">Nom de l'entreprise</span>
-                <div className="flex items-center gap-2 rounded-2xl border border-primary/40 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
-                  <Building2 size={18} className="text-primary" />
-                  <input
-                    type="text"
-                    name="companyName"
-                    value={signupForm.companyName}
-                    onChange={handleSignupChange}
-                    placeholder="Success Pool"
-                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
-                    required
-                  />
+              <div className="sm:col-span-2 space-y-2">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Entreprise</span>
+                <div className="flex items-center gap-2">
+                  <label className="block flex-1">
+                    <div className="flex items-center gap-2 rounded-2xl border border-primary/40 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+                      <Building2 size={18} className="text-primary" />
+                      <select
+                        name="companyId"
+                        value={signupForm.companyId}
+                        onChange={handleSignupChange}
+                        className="w-full bg-transparent text-sm text-foreground outline-none"
+                        required
+                      >
+                        <option value="" disabled>
+                          Sélectionnez une entreprise
+                        </option>
+                        {companies.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCompanyModal(true)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-primary/60 bg-primary/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+                    aria-label="Ajouter une entreprise"
+                  >
+                    <UserPlus size={16} /> Ajouter
+                  </button>
                 </div>
-              </label>
+              </div>
 
               <label className="block">
                 <span className="mb-1.5 block font-medium text-muted-foreground">Nom</span>
@@ -818,6 +1055,7 @@ export default function RecruiterPortal() {
                     onChange={handleSignupChange}
                     placeholder="talents@successpool.com"
                     className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                    autoComplete="email"
                     required
                   />
                 </div>
@@ -840,25 +1078,6 @@ export default function RecruiterPortal() {
               </label>
 
               <label className="block sm:col-span-2">
-                <span className="mb-1.5 block font-medium text-muted-foreground">Photo de profil</span>
-                <div className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-white px-4 py-3">
-                  <Image size={18} className="text-primary" />
-                  <input
-                    type="file"
-                    name="profilePhoto"
-                    accept="image/*"
-                    onChange={handleSignupChange}
-                    className="w-full text-sm text-muted-foreground file:mr-4 file:rounded-full file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-primary file:transition file:hover:bg-primary/20"
-                    required
-                  />
-                </div>
-                <span className="mt-1 block text-xs text-muted-foreground/80">Formats acceptés : JPG, PNG (max 5 Mo)</span>
-                {signupForm.profilePhoto && (
-                  <span className="mt-1 block text-xs text-muted-foreground">{signupForm.profilePhoto.name}</span>
-                )}
-              </label>
-
-              <label className="block sm:col-span-2">
                 <span className="mb-1.5 block font-medium text-muted-foreground">Mot de passe</span>
                 <div className="flex items-center gap-2 rounded-2xl border border-primary/40 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
                   <KeyRound size={18} className="text-primary" />
@@ -869,6 +1088,7 @@ export default function RecruiterPortal() {
                     onChange={handleSignupChange}
                     placeholder="Définissez un mot de passe sécurisé"
                     className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                    autoComplete="new-password"
                     required
                   />
                 </div>
@@ -909,6 +1129,51 @@ export default function RecruiterPortal() {
           totalAvailable={candidatePool.length}
         />
       )}
+
+      {showCompanyModal && (
+        <CompanyModal
+          onClose={() => setShowCompanyModal(false)}
+          newCompany={newCompany}
+          setNewCompany={setNewCompany}
+          dndState={dndState}
+          onDragOver={(e) => handleCompanyDrag(e, true)}
+          onDragLeave={(e) => handleCompanyDrag(e, false)}
+          onDrop={handleCompanyDrop}
+          onPickImage={(e) => {
+            const file = e.target.files?.[0]
+            if (file) handleNewCompanyImage(file)
+          }}
+          companies={companies}
+          onSelectExisting={(id) => {
+            setSignupForm((prev) => ({ ...prev, companyId: id }))
+            setShowCompanyModal(false)
+            setStatusMessage({ type: "success", text: "Entreprise sélectionnée." })
+          }}
+          onCreate={async () => {
+            const { name, email, address, description, imageDataUrl } = newCompany
+            if (!name || !email || !address || !description) {
+              setStatusMessage({ type: "error", text: "Veuillez compléter tous les champs entreprise." })
+              return
+            }
+            // Try backend first
+            const createdId = await createCompanyViaApi(newCompany)
+            let id = createdId
+            if (!id) {
+              // fallback local id
+              id = name
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "") + "-" + Date.now()
+            }
+            const record = { id, name, email, address, description, imageDataUrl }
+            setCompanies((prev) => [...prev, record])
+            setSignupForm((prev) => ({ ...prev, companyId: id }))
+            setShowCompanyModal(false)
+            setNewCompany({ name: "", email: "", address: "", description: "", imageFile: null, imageDataUrl: "" })
+            setStatusMessage({ type: "success", text: "Entreprise ajoutée avec succès." })
+          }}
+        />
+      )}
     </main>
   )
 }
@@ -934,6 +1199,186 @@ function Modal({ onClose, className = "", children }) {
           <X size={18} strokeWidth={2} />
         </button>
         {children}
+      </div>
+    </div>
+  )
+}
+
+function CompanyModal({ onClose, newCompany, setNewCompany, dndState, onDragOver, onDragLeave, onDrop, onPickImage, onCreate, companies, onSelectExisting }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-3 py-6 sm:px-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-h-[calc(100vh-3rem)] max-w-2xl overflow-y-auto rounded-4xl border border-border/70 bg-white/98 p-6 shadow-2xl backdrop-blur-md md:p-8"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-muted-foreground transition hover:border-primary hover:text-primary"
+          aria-label="Fermer la fenêtre de création d'entreprise"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+
+        <div className="mb-6 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <Building2 size={18} /> Ajouter une entreprise
+          </div>
+          <p className="text-sm text-muted-foreground">Créez une nouvelle fiche entreprise pour y rattacher vos recruteurs.</p>
+        </div>
+
+        <div className="space-y-5 text-sm">
+          <label className="block">
+            <span className="mb-1.5 block font-medium text-muted-foreground">Nom de l'entreprise</span>
+            <div className="flex items-center gap-2 rounded-2xl border border-primary/40 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+              <Building2 size={18} className="text-primary" />
+              <input
+                type="text"
+                value={newCompany.name}
+                onChange={(e) => setNewCompany((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Success Pool"
+                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                required
+              />
+            </div>
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block font-medium text-muted-foreground">Email entreprise</span>
+              <div className="flex items-center gap-2 rounded-2xl border border-primary/40 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+                <Mail size={18} className="text-primary" />
+                <input
+                  type="email"
+                  value={newCompany.email}
+                  onChange={(e) => setNewCompany((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="contact@entreprise.com"
+                  className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                  required
+                />
+              </div>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block font-medium text-muted-foreground">Adresse</span>
+              <div className="flex items-center gap-2 rounded-2xl border border-primary/40 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
+                <Building2 size={18} className="text-primary" />
+                <input
+                  type="text"
+                  value={newCompany.address}
+                  onChange={(e) => setNewCompany((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="Adresse complète"
+                  className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
+                  required
+                />
+              </div>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block font-medium text-muted-foreground">Description</span>
+            <textarea
+              value={newCompany.description}
+              onChange={(e) => setNewCompany((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Décrivez brièvement l'entreprise"
+              className="h-24 w-full rounded-2xl border border-primary/40 bg-white px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/30"
+              required
+            />
+          </label>
+
+          <div
+            className={`group relative overflow-hidden rounded-3xl border-2 border-dashed px-5 py-8 text-center transition ${
+              dndState.isDragging
+                ? "border-primary bg-gradient-to-br from-primary/10 via-background to-accent/10 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
+                : "border-border/60 bg-secondary/60 hover:border-primary/50 hover:bg-primary/5"
+            }`}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.08),transparent_40%),radial-gradient(circle_at_80%_30%,rgba(16,185,129,0.08),transparent_45%)]" />
+            <div className="relative mx-auto flex max-w-md flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20 transition group-hover:scale-[1.02]">
+                <Image size={22} />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Glissez-déposez votre logo</p>
+              <p className="text-xs text-muted-foreground">PNG, JPG, SVG · max 5 Mo · 256×256 conseillé</p>
+              <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-primary/60 bg-white/95 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground">
+                Parcourir
+                <input type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+              </label>
+              {newCompany.imageDataUrl && (
+                <div className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-border/60 bg-white/90 p-2 pr-3">
+                  <div className="flex items-center gap-3">
+                    <img src={newCompany.imageDataUrl} alt="Logo" className="h-10 w-10 rounded object-cover ring-1 ring-border/60" />
+                    <span className="text-xs text-muted-foreground">Logo prêt à être enregistré</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewCompany((p) => ({ ...p, imageFile: null, imageDataUrl: "" }))}
+                    className="rounded-full border border-border/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition hover:border-destructive/40 hover:text-destructive"
+                  >
+                    Retirer
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Entreprises existantes</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {companies.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData('company/id', c.id)}
+                  onClick={() => onSelectExisting(c.id)}
+                  className="group relative flex items-center gap-3 rounded-2xl border border-border/60 bg-white/90 p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                  title="Glissez pour déposer dans la zone ou cliquez pour sélectionner"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary ring-1 ring-border/50">
+                    {c.imageDataUrl ? (
+                      <img src={c.imageDataUrl} alt={c.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-semibold">{(c.name || '?').slice(0,2).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{c.name}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{c.email}</p>
+                  </div>
+                  <span className="pointer-events-none absolute right-2 top-2 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary opacity-0 transition group-hover:opacity-100">
+                    Drag
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground transition hover:border-primary hover:text-primary"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={onCreate}
+              className="rounded-full bg-linear-to-r from-primary to-accent px-5 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground shadow-lg transition hover:shadow-xl"
+            >
+              Créer l'entreprise
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -52,6 +52,8 @@ const UserSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true, index: true },
     passwordHash: { type: String, required: true },
+    role: { type: String, enum: ['candidate', 'recruiter'], default: 'candidate', index: true },
+    company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
     profile: ProfileSchema,
     documents: [DocumentSchema],
   },

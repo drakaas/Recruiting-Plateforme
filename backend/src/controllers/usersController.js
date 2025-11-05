@@ -42,18 +42,25 @@ function mapParsedToProfile(parsed) {
 
 async function createUser(req, res, next) {
   try {
-    const { email, password, parsed } = req.body
+    const { email, password, parsed, role, companyId } = req.body
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' })
     }
-    const exists = await User.findOne({ email })
+    const normalized = String(email).trim().toLowerCase()
+    const exists = await User.findOne({ email: { $regex: `^${normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } })
     if (exists) return res.status(409).json({ error: 'email already registered' })
 
     const passwordHash = await bcrypt.hash(password, 10)
     const profile = mapParsedToProfile(parsed)
 
-    const user = await User.create({ email, passwordHash, profile })
-    return res.status(201).json({ id: user._id.toString() })
+    const doc = { email: normalized, passwordHash, profile }
+    if (role === 'recruiter') {
+      doc.role = 'recruiter'
+      if (companyId) doc.company = companyId
+    }
+
+    const user = await User.create(doc)
+    return res.status(201).json({ id: user._id.toString(), email: user.email, role: user.role, company: user.company || null })
   } catch (err) {
     return next(err)
   }
