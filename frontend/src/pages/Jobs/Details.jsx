@@ -14,6 +14,7 @@ export default function JobDetailsPage() {
     return JOBS[0]
   })
   const [loading, setLoading] = useState(false)
+  const [alreadyApplied, setAlreadyApplied] = useState(false)
   const [showApplyModal, setShowApplyModal] = useState(false)
   const { user } = useAuth()
 
@@ -104,6 +105,24 @@ export default function JobDetailsPage() {
     }
   }, [id])
 
+  useEffect(() => {
+    let cancelled = false
+    const checkApplied = async () => {
+      if (!user?.id) return
+      const looksLikeMongoId = typeof id === 'string' && /^[a-f\d]{24}$/i.test(id)
+      if (!looksLikeMongoId) return
+      try {
+        const url = `${API_BASE_URL.replace(/\/$/, '')}/applications?candidateId=${encodeURIComponent(user.id)}&offerId=${encodeURIComponent(id)}`
+        const res = await fetch(url)
+        if (!res.ok) return
+        const list = await res.json()
+        if (!cancelled) setAlreadyApplied(Array.isArray(list) && list.length > 0)
+      } catch (_e) {}
+    }
+    checkApplied()
+    return () => { cancelled = true }
+  }, [id, user?.id])
+
   return (
     <main className="min-h-screen bg-background">
   <section className="bg-linear-to-r from-primary to-accent py-12">
@@ -190,9 +209,10 @@ export default function JobDetailsPage() {
                 <button
                   type="button"
                   onClick={() => setShowApplyModal(true)}
+                  disabled={alreadyApplied}
                   className="w-full block text-center py-2 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-opacity-90 transition"
                 >
-                  Candidater
+                  {alreadyApplied ? 'Déjà candidaté' : 'Candidater'}
                 </button>
               </div>
 
@@ -268,9 +288,10 @@ export default function JobDetailsPage() {
                 <button
                   type="button"
                   onClick={() => setShowApplyModal(true)}
+                  disabled={alreadyApplied}
                   className="w-full block text-center py-3 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-opacity-90 transition"
                 >
-                  Candidater maintenant
+                  {alreadyApplied ? 'Déjà candidaté' : 'Candidater maintenant'}
                 </button>
                 <button className="w-full py-3 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition">Sauvegarder l'offre</button>
               </div>
@@ -297,16 +318,8 @@ function ApplyModal({ job, user, onClose }) {
   const cvInputRef = useRef(null)
   const docsInputRef = useRef(null)
   const [form, setForm] = useState(() => ({
-    fullName: user?.fullName || '',
-    email: user?.email || '',
     message: '',
   }))
-
-  useEffect(() => {
-    if (user?.email) {
-      setForm((prev) => (prev.email ? prev : { ...prev, email: user.email }))
-    }
-  }, [user?.email])
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -355,10 +368,6 @@ function ApplyModal({ job, user, onClose }) {
       return
     }
 
-    if (!form.email) {
-      setStatus({ type: 'error', text: 'Veuillez renseigner votre email.' })
-      return
-    }
     setIsSubmitting(true)
     setStatus(null)
     try {
@@ -368,8 +377,6 @@ function ApplyModal({ job, user, onClose }) {
       if (job.title) payload.append('jobTitle', job.title)
       if (job.company) payload.append('company', job.company)
       if (user?.id) payload.append('candidateId', user.id)
-      if (form.fullName) payload.append('candidateName', form.fullName)
-      payload.append('candidateEmail', form.email)
       if (form.message) payload.append('message', form.message)
       payload.append('cv', cvFile, cvFile.name)
       documents.forEach((file) => payload.append('documents', file, file.name))
@@ -389,6 +396,8 @@ function ApplyModal({ job, user, onClose }) {
       setCvFile(null)
       setDocuments([])
       setForm((prev) => ({ ...prev, message: '' }))
+      // Redirect to applications page after success
+      try { window.location.assign('/applications') } catch {}
     } catch (error) {
       console.error('Failed to submit application', error)
       setStatus({ type: 'error', text: error?.message || "Une erreur est survenue lors de l'envoi." })
@@ -422,32 +431,6 @@ function ApplyModal({ job, user, onClose }) {
             <p className="text-xs uppercase tracking-wide text-primary">Candidature</p>
             <h2 className="text-2xl font-bold text-foreground sm:text-3xl">{job.title}</h2>
             <p className="text-sm text-muted-foreground">{job.company}</p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Nom complet</span>
-              <input
-                name="fullName"
-                value={form.fullName}
-                onChange={handleChange}
-                type="text"
-                placeholder="Votre nom"
-                className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Email</span>
-              <input
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                type="email"
-                required
-                placeholder="vous@example.com"
-                className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </label>
           </div>
 
           {status && (

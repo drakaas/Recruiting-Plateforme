@@ -19,7 +19,7 @@ export default function Navbar() {
 
   const candidateLinks = [
     { label: "Mon profil", to: "/candidat/profil", type: "route" },
-    { label: "Mes candidatures", to: "/candidat/candidatures", type: "route" },
+    { label: "Mes candidatures", to: "/applications", type: "route" },
     { label: "Offres d'emploi", to: "/jobs", type: "route" },
   ]
   const recruiterLinks = [
