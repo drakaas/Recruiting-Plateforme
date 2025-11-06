@@ -8,7 +8,9 @@ const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-
 async function analyzeWithGemini(text) {
   try {
     // eslint-disable-next-line no-console
-    console.log('Analyzing text:', (text || '').substring(0, 100) + '...')
+    console.log('[cvParser] Analyzing text (first 120 chars):', (text || '').substring(0, 120) + '...')
+    console.log('[cvParser] API URL:', API_URL)
+    console.log('[cvParser] API KEY present:', !!API_KEY)
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -68,14 +70,19 @@ Rules:
     })
 
     if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      console.error('[cvParser] API non-OK status:', response.status, body?.slice(0, 300))
       throw new Error(`API request failed with status ${response.status}`)
     }
 
     const data = await response.json()
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    console.log('[cvParser] candidates count:', Array.isArray(data?.candidates) ? data.candidates.length : 0)
+    console.log('[cvParser] raw text length:', textOut.length)
+    return textOut
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('Gemini API error:', error)
+    console.error('[cvParser] Gemini API error:', error)
     throw new Error(error.message || 'Failed to analyze text with Gemini')
   }
 }
@@ -84,16 +91,22 @@ async function extractCvData(cvText) {
   const text = await analyzeWithGemini(cvText)
   if (!text) return null
   try {
-    return JSON.parse(text)
+    const parsed = JSON.parse(text)
+    console.log('[cvParser] JSON parsed OK')
+    return parsed
   } catch (_e) {
+    console.warn('[cvParser] JSON parse failed, attempting to recover from substring')
     const start = text.indexOf('{')
     const end = text.lastIndexOf('}')
     if (start >= 0 && end > start) {
       const fixed = text.slice(start, end + 1)
       try {
-        return JSON.parse(fixed)
+        const recovered = JSON.parse(fixed)
+        console.log('[cvParser] Recovered JSON parse OK')
+        return recovered
       } catch (_e2) {}
     }
+    console.error('[cvParser] Unable to parse JSON from model output. Output head:', (text || '').slice(0, 200))
     return null
   }
 }

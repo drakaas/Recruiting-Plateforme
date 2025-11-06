@@ -1,6 +1,6 @@
 const { Router } = require('express')
 const multer = require('multer')
-const { extractCvText } = require('../controllers/cvController')
+const { extractCvText, scoreCompatibility, generateInterview } = require('../controllers/cvController')
 
 const router = Router()
 
@@ -16,6 +16,8 @@ const upload = multer({
 })
 
 router.post('/extract', upload.single('cv'), extractCvText)
+router.post('/score', scoreCompatibility)
+router.post('/interview', generateInterview)
 
 module.exports = router
 
