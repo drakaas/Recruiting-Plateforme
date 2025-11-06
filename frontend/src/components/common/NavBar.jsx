@@ -17,12 +17,16 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const { user, logout } = useAuth()
 
-  const isRecruiter = user?.role === "recruiter"
+  const candidateLinks = [
+    { label: "Mon profil", to: "/candidat/profil", type: "route" },
+    { label: "Mes candidatures", to: "/candidat/candidatures", type: "route" },
+    { label: "Offres d'emploi", to: "/jobs", type: "route" },
+  ]
   const recruiterLinks = [
     { label: "Mes offres", to: "/mes-offres", type: "route" },
     { label: "Recommandations", to: "/recommandations", type: "route" },
   ]
-  const activeLinks = isRecruiter ? recruiterLinks : primaryLinks
+  const activeLinks = user ? (user.role === 'recruiter' ? recruiterLinks : candidateLinks) : primaryLinks
 
   const closeMenu = () => setIsOpen(false)
   const handleLogout = () => {
@@ -76,48 +80,67 @@ export default function Navbar() {
           </div>
 
           <div className="mt-6 flex flex-col gap-3 md:mt-0 md:flex-row md:items-center md:gap-3">
-{isRecruiter ? (
-  <>
-    <Link
-      to="/recruiter"
-      className="rounded-full bg-secondary/60 px-5 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary hover:text-foreground/90"
-      onClick={closeMenu}
-    >
-      Portail Recruteur
-    </Link>
-    <button
-      type="button"
-      onClick={handleLogout}
-      className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
-    >
-      Se déconnecter
-    </button>
-  </>
-) : (
-  <>
-    <Link
-      to="/login"
-      className="rounded-full border border-border/70 px-5 py-2 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary"
-      onClick={closeMenu}
-    >
-      Connexion
-    </Link>
-    <Link
-      to="/signup"
-      className="rounded-full bg-linear-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:shadow-md"
-      onClick={closeMenu}
-    >
-      S'inscrire
-    </Link>
-    <Link
-      to="/recruiter"
-      className="rounded-full bg-secondary/60 px-5 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary hover:text-foreground/90"
-      onClick={closeMenu}
-    >
-      Espace Recruteur
-    </Link>
-  </>
-)}
+            {user ? (
+              user.role === 'recruiter' ? (
+                <>
+                  <Link
+                    to="/recruiter"
+                    className="rounded-full bg-secondary/60 px-5 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary hover:text-foreground/90"
+                    onClick={closeMenu}
+                  >
+                    Portail recruteur
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
+                  >
+                    Se déconnecter
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/candidat/espace"
+                    className="rounded-full bg-secondary/60 px-5 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary hover:text-foreground/90"
+                    onClick={closeMenu}
+                  >
+                    Espace Candidat
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
+                  >
+                    Se déconnecter
+                  </button>
+                </>
+              )
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="rounded-full border border-border/70 px-5 py-2 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary"
+                  onClick={closeMenu}
+                >
+                  Connexion
+                </Link>
+                <Link
+                  to="/signup"
+                  className="rounded-full bg-linear-to-r from-primary to-accent px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:shadow-md"
+                  onClick={closeMenu}
+                >
+                  S'inscrire
+                </Link>
+                <Link
+                  to="/recruiter"
+                  className="rounded-full bg-secondary/60 px-5 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary hover:text-foreground/90"
+                  onClick={closeMenu}
+                >
+                  Espace Recruteur
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

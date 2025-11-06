@@ -1,11 +1,13 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { API_BASE_URL } from "../../utils/config"
+import { useAuth } from "../../context/useAuth"
 import { Mail, Lock, Eye, EyeOff, Zap, CheckCircle, Sparkles, FileUp } from "lucide-react"
 import successPoolLogo from "../../assets/success-pool-logo.svg"
 
 export default function SignupPage() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -121,10 +123,17 @@ export default function SignupPage() {
       // eslint-disable-next-line no-console
       console.log('CV extract response:', data)
 
+      // Do NOT create user yet: let the candidate review/edit parsed data first
       setIsLoading(false)
       setProcessingMessage("")
-      setFormData({ email: "", password: "", confirmPassword: "", cv: null })
-      navigate('/candidat/creer-profil', { replace: true, state: { parsed: data?.parsed || null } })
+      navigate('/candidat/creer-profil', {
+        replace: true,
+        state: {
+          parsed: data?.parsed || null,
+          email: formData.email,
+          password: formData.password,
+        },
+      })
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('CV extract failed:', err)

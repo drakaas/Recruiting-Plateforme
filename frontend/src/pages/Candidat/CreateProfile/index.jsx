@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
+import { API_BASE_URL } from "../../../utils/config"
 import { Plus, Trash2, Building2, User, Github, Linkedin, FileText } from "lucide-react"
 import { civilityOptions, initialProfileState } from "./data"
 
 export default function CreateCandidateProfilePage() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const emailFromSignup = location?.state?.email || null
+  const passwordFromSignup = location?.state?.password || null
   const [profile, setProfile] = useState(initialProfileState)
   const [errors, setErrors] = useState({})
 
@@ -50,6 +54,44 @@ export default function CreateCandidateProfilePage() {
       setProfile((prev) => ({ ...prev, ...normalizedFromParsed }))
     }
   }, [normalizedFromParsed])
+
+  // Prefill from existing profile if provided
+  useEffect(() => {
+    const prof = location?.state?.profile
+    if (prof) {
+      setProfile((prev) => ({
+        ...prev,
+        civility: prof.civility || prev.civility,
+        firstName: prof.firstName || prev.firstName,
+        lastName: prof.lastName || prev.lastName,
+        city: prof.city || prev.city,
+        postalCode: prof.postalCode || prev.postalCode,
+        phone: prof.phone || prev.phone,
+        github: prof?.links?.github || prev.github,
+        linkedin: prof?.links?.linkedin || prev.linkedin,
+        otherLinks: Array.isArray(prof?.links?.others) && prof.links.others.length
+          ? prof.links.others.map((url) => ({ name: '', url }))
+          : prev.otherLinks,
+        projects: Array.isArray(prof?.projects) && prof.projects.length
+          ? prof.projects.map((p) => ({
+              name: p?.name || '',
+              level: p?.level || '',
+              organization: p?.organization || '',
+              date: p?.date || '',
+              description: p?.description || '',
+              skills: Array.isArray(p?.skills) ? p.skills.join(', ') : (p?.skills || ''),
+            }))
+          : prev.projects,
+      }))
+    }
+    const docs = location?.state?.documents
+    if (Array.isArray(docs)) {
+      setProfile((prev) => ({
+        ...prev,
+        documents: docs.map((d) => ({ name: d.name || d.filename, file: null })),
+      }))
+    }
+  }, [location?.state?.profile, location?.state?.documents])
 
   const handleGeneralChange = (e) => {
     const { name, value } = e.target
@@ -132,11 +174,60 @@ export default function CreateCandidateProfilePage() {
     }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // eslint-disable-next-line no-console
-    console.log("Profil complété:", profile)
-    alert("Profil sauvegardé avec succès!")
+    let userId = location?.state?.userId
+    const hasFiles = Array.isArray(profile.documents) && profile.documents.some((d) => d.file)
+    try {
+      // If user isn't created yet, create with provided email/password
+      if (!userId && emailFromSignup && passwordFromSignup) {
+        const createRes = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailFromSignup, password: passwordFromSignup, parsed: null }),
+        })
+        if (!createRes.ok) {
+          const errText = await createRes.text()
+          throw new Error(errText || `HTTP ${createRes.status}`)
+        }
+        const created = await createRes.json()
+        userId = created?.id
+      }
+
+      if (!userId) throw new Error('Aucun identifiant utilisateur disponible')
+
+      // Update profile structure in DB
+      await fetch(`${API_BASE_URL.replace(/\/$/, '')}/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile }),
+      })
+
+      if (hasFiles) {
+        const fd = new FormData()
+        const cvDoc = profile.documents.find((d) => d.name?.toLowerCase().includes('cv') && d.file)
+        if (cvDoc?.file) {
+          fd.append('cv', cvDoc.file, cvDoc.file.name)
+          fd.append('cvName', cvDoc.name || 'CV')
+        }
+
+        const otherDocs = profile.documents.filter((d) => d.file && d !== cvDoc)
+        otherDocs.forEach((d) => fd.append('documents', d.file, d.file.name))
+        otherDocs.forEach((d) => fd.append('documentNames', d.name || d.file.name))
+
+        await fetch(`${API_BASE_URL.replace(/\/$/, '')}/users/${userId}/files`, {
+          method: 'POST',
+          body: fd,
+        })
+      }
+
+      alert('Profil sauvegardé avec succès!')
+      navigate('/candidat/espace', { replace: true })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Save profile failed:', err)
+      alert('Erreur lors de la sauvegarde du profil')
+    }
   }
 
   return (
@@ -453,6 +544,7 @@ export default function CreateCandidateProfilePage() {
             </button>
             <button
               type="button"
+              onClick={() => navigate('/candidat/profil')}
               className="px-8 py-4 border border-border/50 text-foreground font-semibold rounded-lg hover:bg-secondary/50 transition-all"
             >
               Annuler
