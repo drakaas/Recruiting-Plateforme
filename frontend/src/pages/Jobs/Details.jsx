@@ -1,15 +1,82 @@
-import { useMemo } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { MapPin, Clock, DollarSign, ArrowLeft } from 'lucide-react'
-import { JOBS } from './data'
+import { useApi } from '../../hooks/useApi'
 
 export default function JobDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const jobId = Number(id)
-  const job = useMemo(() => JOBS.find(j => j.id === jobId), [jobId])
+  const { request } = useApi()
+  const [job, setJob] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  if (!job) {
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        // Try direct by id (backend route)
+        const o = await request(`/offers/${id}`)
+        if (cancelled) return
+        const mapped = mapOfferToJob(o)
+        setJob(mapped)
+      } catch (_e) {
+        // Fallback: list lookup
+        try {
+          const list = await request('/offers')
+          const raw = Array.isArray(list) ? list.find((o) => (o?.id || o?._id) === id) : null
+          if (raw) {
+            if (!cancelled) setJob(mapOfferToJob(raw))
+          } else {
+            setError('not_found')
+          }
+        } catch (_e2) {
+          setError('not_found')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [id, request])
+
+  function mapOfferToJob(o) {
+    const companyName = (o && o.company && typeof o.company === 'object' && o.company.name) ? o.company.name : 'Entreprise'
+    const companyImage = (o && o.company && typeof o.company === 'object' && o.company.imageUrl) ? o.company.imageUrl : ''
+    return {
+      id: o.id || o._id,
+      title: o.title,
+      company: companyName,
+      // Use first letter as logo to preserve existing style
+      logo: companyName?.[0] || '•',
+      location: o.location || 'À préciser',
+      type: o.contractType || 'À préciser',
+      salary: o.salary || 'Non précisé',
+      tags: Array.isArray(o.keywords) ? o.keywords : [],
+      description: '',
+      missions: [],
+      idealProfile: [],
+    }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <button onClick={() => navigate(-1)} className="mb-6 inline-flex items-center gap-2 text-sm text-foreground hover:text-primary transition">
+            <ArrowLeft size={16} /> Retour
+          </button>
+          <div className="border border-border bg-card rounded-lg p-8 text-center">
+            <p className="text-foreground">Chargement...</p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (error || !job) {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
