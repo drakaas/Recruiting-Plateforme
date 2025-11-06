@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/useAuth'
 import { API_BASE_URL } from '../../utils/config'
-import { Filter, X, CheckCircle, Clock, XCircle, Star, Eye, Briefcase } from 'lucide-react'
+import { Filter, X, CheckCircle, Clock, XCircle, Star, Eye, Briefcase, Check, MapPin, PlayCircle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 
 const STATUS_LABELS = {
@@ -22,6 +23,7 @@ const STATUS_CLASSES = {
 }
 
 export default function MyApplicationsPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [apps, setApps] = useState([])
   const [loading, setLoading] = useState(false)
@@ -98,6 +100,64 @@ export default function MyApplicationsPage() {
         return null
     }
   }
+
+  const StatusTimelineLikeEspace = ({ status }) => {
+    const steps = [
+      { key: 'pending-review', label: 'En attente' },
+      { key: 'interview-scheduled', label: 'Entretien planifié' },
+      { key: 'interview-passed', label: 'Entretien passé' },
+      { key: status === 'accepted' ? 'accepted' : status === 'rejected' ? 'rejected' : 'decision', label: status === 'accepted' ? 'Accepté' : status === 'rejected' ? 'Refusé' : 'Décision en attente' },
+    ]
+    let currentIndex = steps.findIndex((s) => s.key === status)
+    if (status === 'accepted' || status === 'rejected') currentIndex = steps.length - 1
+    if (currentIndex < 0) currentIndex = 0
+    return (
+      <div className="flex flex-col gap-3 rounded-3xl bg-secondary/20 p-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:gap-4">
+        {steps.map((step, index) => {
+          const completed = index < currentIndex
+          const current = index === currentIndex
+          const badgeClasses = completed
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+            : current
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border/60 text-slate-400'
+          return (
+            <div key={step.key || index} className="flex items-center gap-2 sm:min-w-[140px]">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-semibold ${badgeClasses}`}>
+                {completed ? <Check size={14} /> : index + 1}
+              </span>
+              <span className={current ? 'font-semibold text-slate-700' : 'text-slate-500'}>{step.label}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const mapBackendToEspaceStatus = (s) => {
+    switch (s) {
+      case 'rejete': return 'rejected'
+      case 'accepte': return 'accepted'
+      case 'cv_traite': return 'interview-scheduled'
+      case 'preselectionne': return 'interview-scheduled'
+      case 'soumis': return 'pending-review'
+      case 'en_attente_interview': return 'pending-review'
+      default: return 'pending-review'
+    }
+  }
+
+  const ActionButtonLikeEspace = () => (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <button
+        type="button"
+        onClick={() => navigate('/candidat/instructions')}
+        className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:bg-primary/90"
+      >
+        <PlayCircle size={14} /> Passer l'entretien vidéo
+      </button>
+      <span className="text-[11px] text-slate-400">Votre session vidéo s'ouvrira dans une nouvelle page.</span>
+    </div>
+  )
 
   return (
     <main className="min-h-screen bg-background">
@@ -185,64 +245,46 @@ export default function MyApplicationsPage() {
                 const appId = a.id || a._id
                 const title = a.jobTitle || a.offerMeta?.title || 'Offre'
                 const companyName = a.companyName || a.offerMeta?.company?.name || ''
-                const logo = a.offerMeta?.company?.imageUrl || ''
                 const appliedAt = a.createdAt ? new Date(a.createdAt).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' }) : ''
+                const mapped = mapBackendToEspaceStatus(a.status)
                 const statusCls = STATUS_CLASSES[a.status] || 'bg-slate-100 text-slate-700 border-slate-200'
                 const link = a.offerMeta?.id ? `/jobs/${a.offerMeta.id}` : null
                 const score = typeof a.compatibilityScore === 'number' ? a.compatibilityScore : null
                 const reason = a.rejectionReason || null
                 return (
-                  <div key={appId} className="group bg-card border border-border rounded-xl p-6 hover:shadow-xl hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 flex flex-col lg:flex-row lg:items-center gap-6">
-                    <div className="w-20 h-20 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center font-bold text-2xl text-primary-foreground flex-shrink-0 group-hover:shadow-lg overflow-hidden">
-                      {logo ? <img src={logo} alt={companyName || 'Entreprise'} className="w-full h-full object-cover" /> : (companyName?.[0] || 'E')}
-                    </div>
-                    <div className="flex-1">
-                      {link ? (
-                        <Link to={link} className="text-2xl font-bold text-foreground mb-2 group-hover:text-primary transition block">{title}</Link>
-                      ) : (
-                        <h3 className="text-2xl font-bold text-foreground mb-2">{title}</h3>
-                      )}
-                      <p className="text-primary font-semibold mb-3">{companyName}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        {appliedAt && (
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1 h-1 bg-primary rounded-full"></span>
-                            Candidaté le {appliedAt}
-                          </span>
-                        )}
-                        {score != null && (
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1 h-1 bg-primary rounded-full"></span>
-                            Score: {score}%
-                          </span>
-                        )}
-                        {a.status === 'rejete' && reason && (
-                          <span className="flex items-center gap-1.5 text-red-600">
-                            <span className="w-1 h-1 bg-red-500 rounded-full"></span>
-                            Raison: {reason}
-                          </span>
-                        )}
+                  <article key={appId} className="space-y-4 rounded-3xl border border-border/60 bg-white/95 p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-primary/70">{companyName}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          {link ? (
+                            <Link to={link} className="text-lg font-semibold text-slate-900">{title}</Link>
+                          ) : (
+                            <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+                          )}
+                          {typeof score === 'number' ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                              Compatibilité {score}%
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {appliedAt ? `Candidature envoyée le ${appliedAt}` : ''}
+                        </p>
+                        {a.status === 'rejete' && reason ? (
+                          <p className="mt-1 text-xs text-rose-600">Raison: {reason}</p>
+                        ) : null}
                       </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
-                      <div className={`px-4 py-2.5 rounded-full font-semibold text-sm flex items-center gap-2 whitespace-nowrap border ${statusCls}`}>
+                      <div className={`px-4 py-2.5 rounded-full font-semibold text-sm inline-flex items-center gap-2 whitespace-nowrap border ${statusCls}`}>
                         {getStatusIcon(a.status)}
                         {STATUS_LABELS[a.status] || a.status}
                       </div>
-                      <div className="flex gap-2 w-full lg:w-auto">
-                        {link && (
-                          <Link to={link} className="flex-1 lg:flex-none">
-                            <button className="w-full px-5 py-2.5 border-2 border-primary text-primary font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground transition-all duration-300">
-                              Voir l'offre
-                            </button>
-                          </Link>
-                        )}
-                        <button onClick={() => handleDelete(appId)} className="w-full lg:w-auto px-5 py-2.5 border-2 border-red-500 text-red-600 font-semibold rounded-lg hover:bg-red-500 hover:text-white transition-all duration-300">
-                          Supprimer
-                        </button>
-                      </div>
                     </div>
-                  </div>
+
+                    <StatusTimelineLikeEspace status={mapped} />
+
+                    <ActionButtonLikeEspace />
+                  </article>
                 )
               })}
             </div>
