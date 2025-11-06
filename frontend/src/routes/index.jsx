@@ -10,6 +10,7 @@ const AboutPage = lazy(() => import('../pages/About'))
 const RecruiterPage = lazy(() => import('../pages/Recruiter'))
 const MyOffersPage = lazy(() => import('../pages/Recruiter/MyOffers'))
 const RecommendationsPage = lazy(() => import('../pages/Recruiter/Recommendations'))
+const RecruiterPlanPage = lazy(() => import('../pages/Recruiter/Plan'))
 const NotFoundPage = lazy(() => import('../pages/NotFound'))
 const SignupPage = lazy(() => import('../pages/Auth/Signup'))
 const CreateCandidateProfilePage = lazy(() => import('../pages/Candidat/CreateProfile'))
@@ -46,6 +47,7 @@ export default function AppRoutes() {
               <Route path="/recruiter" element={<RecruiterPage />} />
               <Route path="/mes-offres" element={<MyOffersPage />} />
               <Route path="/recommandations" element={<RecommendationsPage />} />
+              <Route path="/recruiter/plan" element={<RecruiterPlanPage />} />
               <Route path="/404" element={<NotFoundPage />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>

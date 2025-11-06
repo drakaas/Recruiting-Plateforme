@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Building2,
   CalendarCheck,
@@ -243,8 +244,8 @@ async function fetchCompaniesFromApi() {
       const res = await fetch(url)
       if (!res.ok) continue
       return await res.json()
-    } catch (_e) {
-      // try next base
+    } catch (error) {
+      console.warn("Impossible de récupérer les entreprises", error)
     }
   }
   return null
@@ -269,8 +270,8 @@ async function createCompanyViaApi(company) {
       if (!res.ok) continue
       const data = await res.json()
       return data?.id || null
-    } catch (_e) {
-      // try next base
+    } catch (error) {
+      console.warn("Impossible de créer l'entreprise via l'API", error)
     }
   }
   return null
@@ -297,7 +298,9 @@ async function createRecruiterViaApi({ email, password, companyId, firstName, la
       if (!res.ok) continue
       const data = await res.json()
       return { id: data?.id || null }
-    } catch {}
+    } catch (error) {
+      console.warn("Impossible de créer le recruteur via l'API", error)
+    }
   }
   return { error: "unreachable" }
 }
@@ -315,7 +318,9 @@ async function loginViaApi({ email, password }) {
       if (!res.ok) continue
       const data = await res.json()
       return { base, data }
-    } catch {}
+    } catch (error) {
+      console.warn("Impossible de se connecter via l'API", error)
+    }
   }
   return null
 }
@@ -326,7 +331,8 @@ async function getUserById({ base, id }) {
     const res = await fetch(url)
     if (!res.ok) return null
     return await res.json()
-  } catch {
+  } catch (error) {
+    console.warn("Impossible de récupérer l'utilisateur", error)
     return null
   }
 }
@@ -337,7 +343,8 @@ async function getRecruiterById({ base, id }) {
     const res = await fetch(url)
     if (!res.ok) return null
     return await res.json()
-  } catch {
+  } catch (error) {
+    console.warn("Impossible de récupérer le recruteur", error)
     return null
   }
 }
@@ -370,7 +377,8 @@ const signupFormInitialState = {
 }
 
 export default function RecruiterPortal() {
-  const { user, login, logout } = useAuth()
+  const navigate = useNavigate()
+  const { user, login } = useAuth()
   const [statusMessage, setStatusMessage] = useState(null)
   const [loginForm, setLoginForm] = useState(loginFormInitialState)
   const [signupForm, setSignupForm] = useState(signupFormInitialState)
@@ -434,6 +442,8 @@ export default function RecruiterPortal() {
 
     return candidatePool.slice(0, limitValue)
   }, [candidatePool, candidateLimit])
+  const accessibleCandidateCount = isSubscribed ? displayedCandidates.length : Math.min(3, candidatePool.length)
+  const premiumLockedCount = Math.max(candidatePool.length - accessibleCandidateCount, 0)
 
   const statusVariants = {
     success: "border-primary/40 bg-primary/10 text-primary",
@@ -478,6 +488,11 @@ export default function RecruiterPortal() {
 
     return () => window.clearTimeout(timeoutId)
   }, [candidateActionMessage])
+
+  const handleCandidateLimitChange = (value) => {
+    if (!isSubscribed) return
+    setCandidateLimit(value)
+  }
 
   const openCandidatePool = () => {
     setShowCandidatePoolModal(true)
@@ -779,16 +794,28 @@ export default function RecruiterPortal() {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {totalCandidates} talents présélectionnés par Success Pool pour vos besoins prioritaires.
+                        {isSubscribed
+                          ? `${totalCandidates} talents présélectionnés par Success Pool pour vos besoins prioritaires.`
+                          : `${accessibleCandidateCount} profil${accessibleCandidateCount > 1 ? 's' : ''} accessibles sur ${totalCandidates}. ${premiumLockedCount > 0 ? `Encore ${premiumLockedCount} profil${premiumLockedCount > 1 ? 's' : ''} premium à débloquer.` : ''}`}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={openCandidatePool}
-                      className="inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
-                    >
-                      <Users size={16} /> Voir les candidats ({totalCandidates}) <ChevronDown size={14} />
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={openCandidatePool}
+                        className="inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+                      >
+                        <Users size={16} /> Voir les candidats ({accessibleCandidateCount}) <ChevronDown size={14} />
+                      </button>
+                      {!isSubscribed ? (
+                        <Link
+                          to="/recruiter/plan"
+                          className="inline-flex items-center gap-2 rounded-full border border-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+                        >
+                          Mon plan
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -813,9 +840,13 @@ export default function RecruiterPortal() {
                   )}
 
                   <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/10 px-4 py-3 text-xs text-primary">
-                    {isSubscribed
-                      ? "Vous êtes abonné Success Pool : accédez à l'ensemble des recommandations Société Générale."
-                      : "Pour débloquer davantage de profils recommandés, abonnez-vous directement depuis l'application Success Pool."}
+                    {isSubscribed ? (
+                      "Vous êtes abonné Success Pool : accédez à l'ensemble des recommandations Société Générale."
+                    ) : (
+                      <span>
+                        Accès découverte : 3 profils visibles. <Link to="/recruiter/plan" className="font-semibold text-primary underline-offset-2 hover:underline">Découvrir mon plan</Link>
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1120,12 +1151,16 @@ export default function RecruiterPortal() {
           candidates={displayedCandidates}
           candidateActionMessage={candidateActionMessage}
           candidateLimit={candidateLimit}
-          onLimitChange={setCandidateLimit}
+          onLimitChange={handleCandidateLimitChange}
           onClose={closeCandidatePool}
           onViewProfile={handleViewCandidate}
           onInvite={handleInviteCandidate}
           onRecruit={handleRecruitCandidate}
           onRecommend={handleRecommendCandidate}
+          isSubscribed={isSubscribed}
+          unlockedCount={accessibleCandidateCount}
+          onUpgrade={() => navigate("/recruiter/plan")}
+          companyName={recruiterCompanyName}
           totalAvailable={candidatePool.length}
         />
       )}
@@ -1294,7 +1329,7 @@ function CompanyModal({ onClose, newCompany, setNewCompany, dndState, onDragOver
           <div
             className={`group relative overflow-hidden rounded-3xl border-2 border-dashed px-5 py-8 text-center transition ${
               dndState.isDragging
-                ? "border-primary bg-gradient-to-br from-primary/10 via-background to-accent/10 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
+                ? "border-primary bg-linear-to-br from-primary/10 via-background to-accent/10 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]"
                 : "border-border/60 bg-secondary/60 hover:border-primary/50 hover:bg-primary/5"
             }`}
             onDragOver={onDragOver}
@@ -1564,11 +1599,18 @@ function CandidatePoolModal({
   onRecruit,
   onRecommend,
   totalAvailable,
+  isSubscribed,
+  unlockedCount,
+  onUpgrade,
+  companyName,
 }) {
   const isAllSelected = candidateLimit === "all"
   const numericLimitValue = isAllSelected ? "" : String(candidateLimit)
+  const safeUnlocked = Math.min(typeof unlockedCount === "number" ? unlockedCount : 0, candidates.length)
 
   const handleLimitInput = (event) => {
+    if (!isSubscribed) return
+
     const rawValue = event.target.value.trim()
 
     if (rawValue === "") {
@@ -1584,6 +1626,11 @@ function CandidatePoolModal({
 
     const clampedValue = Math.min(parsedValue, totalAvailable)
     onLimitChange(String(clampedValue))
+  }
+
+  const handleSelectAll = () => {
+    if (!isSubscribed) return
+    onLimitChange("all")
   }
 
   return (
@@ -1613,17 +1660,18 @@ function CandidatePoolModal({
               <h2 className="text-xl font-semibold text-foreground sm:text-2xl">Candidats recommandés</h2>
               <p className="text-sm text-muted-foreground">{totalAvailable} profils présélectionnés pour vos missions prioritaires.</p>
             </div>
-            <label className="flex items-center gap-3 rounded-full border border-border/60 bg-secondary/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            <label className={`flex items-center gap-3 rounded-full border border-border/60 bg-secondary/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground ${!isSubscribed ? "opacity-60" : ""}`}>
               Filtrer par nombre
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => onLimitChange("all")}
+                  onClick={handleSelectAll}
+                  disabled={!isSubscribed}
                   className={`rounded-full border px-3 py-1 text-[11px] transition ${
                     isAllSelected
                       ? "border-primary bg-primary/15 text-primary"
                       : "border-border/70 bg-white text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary"
-                  }`}
+                  } ${!isSubscribed ? "cursor-not-allowed opacity-60" : ""}`}
                 >
                   Tous
                 </button>
@@ -1635,11 +1683,18 @@ function CandidatePoolModal({
                   value={numericLimitValue}
                   onChange={handleLimitInput}
                   placeholder={`Top ${Math.min(3, totalAvailable)}`}
-                  className="w-24 rounded-full border border-border/40 bg-white px-3 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+                  disabled={!isSubscribed}
+                  className="w-24 rounded-full border border-border/40 bg-white px-3 py-1 text-xs font-semibold text-foreground focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-secondary/60"
                 />
               </div>
             </label>
           </div>
+
+          {!isSubscribed && (
+            <div className="rounded-2xl border border-primary/40 bg-primary/10 px-4 py-3 text-xs font-medium text-primary">
+              Offre découverte : {safeUnlocked} profil{safeUnlocked > 1 ? 's' : ''} accessible{safeUnlocked > 1 ? 's' : ''}. Abonnez-vous pour consulter l'intégralité du vivier.
+            </div>
+          )}
 
           {candidateActionMessage && (
             <div
@@ -1655,7 +1710,19 @@ function CandidatePoolModal({
         </header>
 
         <div className="space-y-4">
-          {candidates.map((candidate) => {
+          {candidates.map((candidate, index) => {
+            const isLocked = !isSubscribed && index >= safeUnlocked
+
+            if (isLocked) {
+              return (
+                <LockedCandidateCard
+                  key={`${candidate.id}-locked`}
+                  onUpgrade={onUpgrade}
+                  companyName={companyName}
+                />
+              )
+            }
+
             const isInvited = candidate.status === "invited"
             const isRecommended = candidate.status === "recommended"
             const isRecruited = candidate.status === "recruited"
@@ -1738,5 +1805,27 @@ function CandidatePoolModal({
         </div>
       </div>
     </div>
+  )
+}
+
+function LockedCandidateCard({ onUpgrade, companyName }) {
+  return (
+    <article className="relative overflow-hidden rounded-3xl border border-dashed border-primary/40 bg-white/90 p-6 text-center shadow-inner">
+      <div className="absolute inset-0 bg-linear-to-br from-white/0 via-white/70 to-white/95 backdrop-blur-sm" />
+      <div className="relative space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary">Profil premium</p>
+        <h3 className="text-lg font-semibold text-foreground">Recommandé par {companyName}</h3>
+        <p className="text-sm text-muted-foreground">
+          Abonnez-vous pour consulter l'intégralité du profil, le replay vidéo et les coordonnées de ce candidat.
+        </p>
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+        >
+          Découvrir mon plan
+        </button>
+      </div>
+    </article>
   )
 }

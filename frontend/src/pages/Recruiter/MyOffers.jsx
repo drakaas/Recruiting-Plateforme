@@ -16,10 +16,7 @@ import {
   Award,
   Users,
   ChevronDown,
-  CheckCircle2,
-  Send,
-  Share2,
-  UserX,
+  Lock,
 } from "lucide-react"
 import { useAuth } from "../../context/useAuth"
 import { useApi } from "../../hooks/useApi"
@@ -56,117 +53,6 @@ const CANDIDATE_STATUS_STYLES = {
   refused: "border-red-200 bg-red-50 text-red-600",
 }
 
-const INITIAL_OFFERS = [
-  {
-    id: "offer-1",
-    title: "Lead Data Scientist - Lutte Anti-Fraude",
-    department: "Société Générale · Direction des Risques",
-    status: "Disponible",
-    publishedAt: "Publié le 02/11/2025",
-    location: "Paris · Hybride",
-    contractType: "CDI",
-    contractDuration: "Temps plein",
-    mission:
-      "Piloter la stratégie anti-fraude data-driven et accompagner la montée en compétence d'une squad de 6 data scientists en lien avec la conformité.",
-    candidates: [
-      {
-        name: "Lina Moreau",
-        score: 92,
-        stage: "Entretien final programmé",
-        feedback: "Solide expérience IA anti-fraude, leadership confirmé.",
-        status: "pending",
-      },
-      {
-        name: "Alexandre Pereira",
-        score: 86,
-        stage: "Entretien technique",
-        feedback: "Ex-Head of Data chez fintech, vision produit forte.",
-        status: "pending",
-      },
-      {
-        name: "Emma Rousseau",
-        score: 81,
-        stage: "Pré-qualification",
-        feedback: "Expertise data engineering, besoin d'approfondir use cases fraude.",
-        status: "pending",
-      },
-    ],
-    keywords: ["Anti-fraude", "Leadership squad", "Data Science"],
-    skills: [
-      { name: "Python", importance: "Importante" },
-      { name: "Spark", importance: "Importante" },
-      { name: "Détection d'anomalies", importance: "Souhaitée" },
-    ],
-  },
-  {
-    id: "offer-2",
-    title: "Product Manager - Banque Mobile",
-    department: "Société Générale · Digital Factory",
-    status: "Fermée",
-    publishedAt: "Publié le 28/10/2025",
-    location: "Lille · Remote partiel",
-  contractType: "CDI",
-  contractDuration: "Temps plein",
-    mission: "Définir la roadmap mobile, coordonner design/tech et piloter les releases en lien avec les besoins métiers et clients.",
-    candidates: [
-      {
-        name: "Yanis Belkacem",
-        score: 88,
-        stage: "Entretien RH",
-        feedback: "Lancement app paiement instantané dans 4 marchés.",
-        status: "pending",
-      },
-      {
-        name: "Camille Duval",
-        score: 80,
-        stage: "Dossier en cours",
-        feedback: "Ancienne PM Boursorama, forte culture mobile.",
-        status: "pending",
-      },
-    ],
-    keywords: ["Roadmap produit", "Banque mobile", "Go-to-market"],
-    skills: [
-      { name: "Product discovery", importance: "Importante" },
-      { name: "Analytics", importance: "Importante" },
-      { name: "Agilité", importance: "Souhaitée" },
-    ],
-  },
-  {
-    id: "offer-3",
-    title: "Compliance Officer - KYC Corporate",
-    department: "Société Générale · Conformité",
-    status: "Disponible",
-    publishedAt: "Publié le 19/10/2025",
-    location: "Lyon · Présentiel",
-    contractType: "CDD",
-    contractDuration: "12 mois",
-    mission:
-      "Superviser la remédiation KYC grands comptes et sécuriser la conformité des processus corporate en interaction avec les métiers.",
-    candidates: [
-      {
-        name: "Sarah Ndiaye",
-        score: 85,
-        stage: "Contrat signé",
-        feedback: "Pilotage remédiation KYC grands comptes.",
-        status: "recruited",
-      },
-      {
-        name: "Julien Lefèvre",
-        score: 77,
-        stage: "Vérifications de références",
-        feedback: "Conformité marché dérivés, besoin formation KYC corporate.",
-        status: "pending",
-      },
-    ],
-    keywords: ["KYC", "Grands comptes", "Conformité"],
-    skills: [
-      { name: "Veille réglementaire", importance: "Importante" },
-      { name: "Analyse risque", importance: "Importante" },
-      { name: "Pilotage dossier", importance: "Souhaitée" },
-    ],
-  },
-]
-
 const STATUS_FILTERS = [
   { label: "Toutes", value: "Toutes" },
   { label: "Disponible", value: "Disponible" },
@@ -190,7 +76,6 @@ export default function MyOffers() {
   const [selectedStatus, setSelectedStatus] = useState("Toutes")
   const [showAddModal, setShowAddModal] = useState(false)
   const [activeOfferId, setActiveOfferId] = useState(null)
-  const [candidateActionMessage, setCandidateActionMessage] = useState(null)
   const [newOffer, setNewOffer] = useState({
     title: "",
     department: `${recruiterCompanyName} · Département`,
@@ -242,28 +127,19 @@ export default function MyOffers() {
           mission: o.mission || '',
           keywords: Array.isArray(o.keywords) ? o.keywords : [],
           skills: Array.isArray(o.skills) ? o.skills : [],
-          candidates: Array.isArray(o.candidates) ? o.candidates : [],
+          candidates: Array.isArray(o.candidates)
+            ? o.candidates.map((candidate) => ({
+                ...candidate,
+                interviewScore: typeof candidate?.interviewScore === "number" ? candidate.interviewScore : null,
+              }))
+            : [],
         }))
         setOffers(normalized)
-      } catch (_e) {
-        // keep empty/offline state silently
+      } catch (error) {
+        console.error("Impossible de récupérer les offres recruteur", error)
       }
     })()
   }, [isRecruiter, user?.id, recruiterCompanyName, request])
-
-
-  useEffect(() => {
-    if (!candidateActionMessage) {
-      return undefined
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setCandidateActionMessage(null)
-    }, 3500)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [candidateActionMessage])
-
   const resetForm = () => {
     setNewOffer({
       title: "",
@@ -285,6 +161,7 @@ export default function MyOffers() {
   }
 
   const handleOpenModal = () => {
+    if (!isSubscribed) return
     resetForm()
     setShowAddModal(true)
   }
@@ -299,73 +176,12 @@ export default function MyOffers() {
   }
 
   const openCandidatesModal = (offerId) => {
+    if (!isSubscribed) return
     setActiveOfferId(offerId)
   }
 
   const closeCandidatesModal = () => {
     setActiveOfferId(null)
-  }
-
-  const updateCandidate = (offerId, candidateName, updater) => {
-    setOffers((prevOffers) =>
-      prevOffers.map((offer) => {
-        if (offer.id !== offerId) {
-          return offer
-        }
-
-        const updatedCandidates = offer.candidates.map((candidate) =>
-          candidate.name === candidateName ? updater(candidate) : candidate,
-        )
-
-        return { ...offer, candidates: updatedCandidates }
-      }),
-    )
-  }
-
-  const handleInviteCandidate = (offerId, candidateName) => {
-    updateCandidate(offerId, candidateName, (candidate) => {
-      if (candidate.status === "recruited" || candidate.status === "refused") {
-        return candidate
-      }
-      return {
-        ...candidate,
-        status: "invited",
-        stage: "Entretien à planifier",
-      }
-    })
-    setCandidateActionMessage({ type: "success", text: "Invitation à l'entretien final envoyée." })
-  }
-
-  const handleRecruitCandidate = (offerId, candidateName) => {
-    updateCandidate(offerId, candidateName, (candidate) => ({
-      ...candidate,
-      status: "recruited",
-      stage: "Contrat signé",
-    }))
-    setCandidateActionMessage({ type: "success", text: "Le candidat est maintenant marqué comme recruté." })
-  }
-
-  const handleRecommendCandidate = (offerId, candidateName) => {
-    updateCandidate(offerId, candidateName, (candidate) => {
-      if (candidate.status === "recruited" || candidate.status === "refused") {
-        return candidate
-      }
-      return {
-        ...candidate,
-        status: "recommended",
-        stage: "Recommandé aux autres équipes",
-      }
-    })
-    setCandidateActionMessage({ type: "success", text: "Profil partagé avec les autres recruteurs Success Pool." })
-  }
-
-  const handleRefuseCandidate = (offerId, candidateName) => {
-    updateCandidate(offerId, candidateName, (candidate) => ({
-      ...candidate,
-      status: "refused",
-      stage: "Candidature refusée",
-    }))
-    setCandidateActionMessage({ type: "info", text: "Candidat marqué comme non retenu." })
   }
 
   const handleAddSkill = () => {
@@ -400,6 +216,10 @@ export default function MyOffers() {
 
   const handleAddOffer = async (event) => {
     event.preventDefault()
+    if (!isSubscribed) {
+      setShowAddModal(false)
+      return
+    }
 
     const keywords = newOffer.keywords
       .split(/[\n,]/)
@@ -452,8 +272,8 @@ export default function MyOffers() {
       setOffers((prev) => [normalized, ...prev])
       setShowAddModal(false)
       resetForm()
-    } catch (_e) {
-      // optionally surface an error toast later
+    } catch (error) {
+      console.error("Échec de la création d'une offre", error)
     }
   }
 
@@ -496,6 +316,14 @@ export default function MyOffers() {
               <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
               Pilotage des recrutements {recruiterCompanyName}. Retrouvez vos offres actives, l'avancée des candidats et ajoutez de nouvelles opportunités en un clic.
             </p>
+            {!isSubscribed && (
+              <div className="mt-3 flex items-start gap-3 rounded-3xl border border-primary/40 bg-primary/5 px-4 py-3 text-xs text-primary">
+                <Lock size={16} className="mt-0.5" />
+                <p>
+                  Vous êtes en plan Discovery. Activez le plan Premium Success Pool pour publier de nouvelles offres et gérer les candidatures en direct.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 rounded-3xl border border-border/60 bg-white/90 p-5 shadow-sm backdrop-blur">
@@ -525,13 +353,22 @@ export default function MyOffers() {
                     ))}
                   </select>
                 </label>
-                <button
-                  type="button"
-                  onClick={handleOpenModal}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
-                >
-                  <Plus size={16} /> Ajouter une offre
-                </button>
+                {isSubscribed ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenModal}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
+                  >
+                    <Plus size={16} /> Ajouter une offre
+                  </button>
+                ) : (
+                  <Link
+                    to="/recruiter/plan"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/60 bg-primary/5 px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
+                  >
+                    <Lock size={16} /> Activer mon plan
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -616,18 +453,25 @@ export default function MyOffers() {
                             </p>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCandidateActionMessage(null)
-                            openCandidatesModal(offer.id)
-                          }}
-                          className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/50 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
-                        >
-                          <Users size={16} />
-                          {candidateCount > 0 ? `Voir les candidats (${candidateCount})` : "Ajouter des candidats"}
-                          <ChevronDown size={14} />
-                        </button>
+                        {isSubscribed ? (
+                          <button
+                            type="button"
+                            onClick={() => openCandidatesModal(offer.id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/50 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+                          >
+                            <Users size={16} />
+                            {candidateCount > 0 ? `Voir les candidats (${candidateCount})` : "Voir les candidats"}
+                            <ChevronDown size={14} />
+                          </button>
+                        ) : (
+                          <Link
+                            to="/recruiter/plan"
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary/5 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary transition hover:bg-primary hover:text-primary-foreground"
+                          >
+                            <Lock size={16} /> Débloquer les candidats
+                            <ChevronDown size={14} />
+                          </Link>
+                        )}
                       </div>
                     </div>
 
@@ -708,18 +552,8 @@ export default function MyOffers() {
         </div>
       </section>
     </main>
-      {selectedOffer && (
-        <OfferCandidatesModal
-          offer={selectedOffer}
-          onClose={closeCandidatesModal}
-          onInvite={handleInviteCandidate}
-          onRecruit={handleRecruitCandidate}
-          onRecommend={handleRecommendCandidate}
-          onRefuse={handleRefuseCandidate}
-          candidateActionMessage={candidateActionMessage}
-        />
-      )}
-      {showAddModal && (
+      {isSubscribed && selectedOffer && <OfferCandidatesModal offer={selectedOffer} onClose={closeCandidatesModal} />}
+      {isSubscribed && showAddModal && (
         <AddOfferModal
           onClose={handleCloseModal}
           onSubmit={handleAddOffer}
@@ -1052,8 +886,10 @@ function AddOfferModal({ onClose, onSubmit, newOffer, onChange, onAddSkill, onRe
   )
 }
 
-function OfferCandidatesModal({ offer, onClose, onInvite, onRecruit, onRecommend, onRefuse, candidateActionMessage }) {
-  const sortedCandidates = (offer.candidates ?? []).slice().sort((candidateA, candidateB) => candidateB.score - candidateA.score)
+function OfferCandidatesModal({ offer, onClose }) {
+  const interviewedCandidates = (offer.candidates ?? [])
+    .filter((candidate) => typeof candidate.interviewScore === "number")
+    .sort((candidateA, candidateB) => (candidateB.interviewScore ?? 0) - (candidateA.interviewScore ?? 0))
 
   return (
     <div
@@ -1079,37 +915,20 @@ function OfferCandidatesModal({ offer, onClose, onInvite, onRecruit, onRecommend
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">{offer.department}</p>
           <h2 className="text-2xl font-semibold text-foreground">Candidats pour {offer.title}</h2>
           <p className="text-sm text-muted-foreground">
-            Consultez les talents engagés, attribuez-leur des actions de suivi et partagez les profils pertinents avec les autres équipes Success Pool.
+            Retrouvez ici les profils ayant complété un entretien, avec leurs scores de compatibilité et de restitution.
           </p>
         </header>
 
-        {candidateActionMessage && (
-          <div
-            className={`mt-5 rounded-2xl border px-4 py-3 text-xs font-medium ${
-              candidateActionMessage.type === "success"
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-accent/40 bg-accent/10 text-primary"
-            }`}
-          >
-            {candidateActionMessage.text}
-          </div>
-        )}
-
         <div className="mt-6 space-y-4">
-          {sortedCandidates.length === 0 ? (
+          {interviewedCandidates.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-border/60 bg-secondary/40 px-4 py-6 text-center text-sm text-muted-foreground">
-              Aucun candidat n'a encore été rattaché à cette offre. Ajoutez vos premiers talents pour lancer le suivi.
+              Aucun candidat n'a encore finalisé d'entretien pour cette opportunité.
             </div>
           ) : (
-            sortedCandidates.map((candidate) => {
+            interviewedCandidates.map((candidate) => {
               const statusKey = candidate.status ?? "pending"
               const statusBadgeClass = CANDIDATE_STATUS_STYLES[statusKey] ?? CANDIDATE_STATUS_STYLES.pending
               const statusLabel = CANDIDATE_STATUS_LABELS[statusKey] ?? "En suivi"
-
-              const isInvited = candidate.status === "invited"
-              const isRecommended = candidate.status === "recommended"
-              const isRecruited = candidate.status === "recruited"
-              const isRefused = candidate.status === "refused"
 
               return (
                 <article key={`${offer.id}-${candidate.name}`} className="space-y-3 rounded-3xl border border-border/70 bg-white px-4 py-4 shadow-sm">
@@ -1120,48 +939,16 @@ function OfferCandidatesModal({ offer, onClose, onInvite, onRecruit, onRecommend
                       {candidate.feedback && <p className="text-xs text-muted-foreground">{candidate.feedback}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-                        Score {candidate.score}
+                      <span className="inline-flex items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                        Entretien {candidate.interviewScore}
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">
+                        Compatibilité {candidate.score}
                       </span>
                       <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${statusBadgeClass}`}>
                         {statusLabel}
                       </span>
                     </div>
-                  </div>
-
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    <button
-                      type="button"
-                      onClick={() => onInvite(offer.id, candidate.name)}
-                      disabled={isInvited || isRecruited || isRefused}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/60 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Send size={14} /> Entretien
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRecruit(offer.id, candidate.name)}
-                      disabled={isRecruited}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <CheckCircle2 size={14} /> Recruter
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRecommend(offer.id, candidate.name)}
-                      disabled={isRecommended || isRecruited || isRefused}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-primary px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Share2 size={14} /> Recommander
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRefuse(offer.id, candidate.name)}
-                      disabled={isRefused || isRecruited}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <UserX size={14} /> Refuser
-                    </button>
                   </div>
                 </article>
               )
