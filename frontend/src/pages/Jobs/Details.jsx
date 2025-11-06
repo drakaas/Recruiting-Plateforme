@@ -1,99 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapPin, Clock, DollarSign, ArrowLeft } from 'lucide-react'
-import { useApi } from '../../hooks/useApi'
+import { MapPin, Clock, DollarSign, ArrowLeft, Upload, FileText, X, Paperclip, Trash2, Loader2 } from 'lucide-react'
+import { JOBS } from './data'
+import { useAuth } from '../../context/useAuth'
+import { API_BASE_URL } from '../../utils/config'
 
 export default function JobDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { request } = useApi()
-  const [job, setJob] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        // Try direct by id (backend route)
-        const o = await request(`/offers/${id}`)
-        if (cancelled) return
-        const mapped = mapOfferToJob(o)
-        setJob(mapped)
-      } catch (_e) {
-        // Fallback: list lookup
-        try {
-          const list = await request('/offers')
-          const raw = Array.isArray(list) ? list.find((o) => (o?.id || o?._id) === id) : null
-          if (raw) {
-            if (!cancelled) setJob(mapOfferToJob(raw))
-          } else {
-            setError('not_found')
-          }
-        } catch (_e2) {
-          setError('not_found')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [id, request])
-
-  function mapOfferToJob(o) {
-    const companyName = (o && o.company && typeof o.company === 'object' && o.company.name) ? o.company.name : 'Entreprise'
-    const companyImage = (o && o.company && typeof o.company === 'object' && o.company.imageUrl) ? o.company.imageUrl : ''
-    return {
-      id: o.id || o._id,
-      title: o.title,
-      company: companyName,
-      // Use first letter as logo to preserve existing style
-      logo: companyName?.[0] || '•',
-      location: o.location || 'À préciser',
-      type: o.contractType || 'À préciser',
-      salary: o.salary || 'Non précisé',
-      tags: Array.isArray(o.keywords) ? o.keywords : [],
-      description: '',
-      missions: [],
-      idealProfile: [],
+  const jobId = Number(id)
+  const job = useMemo(() => {
+    if (Number.isFinite(jobId)) {
+      return JOBS.find((j) => j.id === jobId) || JOBS[0]
     }
-  }
+    return JOBS[0]
+  }, [jobId])
+  const [showApplyModal, setShowApplyModal] = useState(false)
+  const { user } = useAuth()
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <button onClick={() => navigate(-1)} className="mb-6 inline-flex items-center gap-2 text-sm text-foreground hover:text-primary transition">
-            <ArrowLeft size={16} /> Retour
-          </button>
-          <div className="border border-border bg-card rounded-lg p-8 text-center">
-            <p className="text-foreground">Chargement...</p>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
-  if (error || !job) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <button onClick={() => navigate(-1)} className="mb-6 inline-flex items-center gap-2 text-sm text-foreground hover:text-primary transition">
-            <ArrowLeft size={16} /> Retour
-          </button>
-          <div className="border border-border bg-card rounded-lg p-8 text-center">
-            <p className="text-foreground">Offre introuvable.</p>
-          </div>
-        </div>
-      </main>
-    )
-  }
+  // Always have a job from static data for testing
 
   return (
     <main className="min-h-screen bg-background">
-      <section className="bg-gradient-to-r from-primary to-accent py-12">
+  <section className="bg-linear-to-r from-primary to-accent py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold text-primary-foreground mb-2">{job.title}</h1>
           <p className="text-primary-foreground/90">{job.company}</p>
@@ -176,7 +105,13 @@ export default function JobDetailsPage() {
             <div className="border border-border bg-card rounded-lg p-6 sticky top-4 space-y-6">
               <div>
                 <h3 className="font-bold text-lg text-foreground mb-4">Postuler</h3>
-                <a href="#" className="w-full block text-center py-2 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-opacity-90 transition">Candidater</a>
+                <button
+                  type="button"
+                  onClick={() => setShowApplyModal(true)}
+                  className="w-full block text-center py-2 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-opacity-90 transition"
+                >
+                  Candidater
+                </button>
               </div>
 
               {job.companyInfo && (
@@ -248,14 +183,376 @@ export default function JobDetailsPage() {
               )}
 
               <div className="space-y-3">
-                <a href="#" className="w-full block text-center py-3 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-opacity-90 transition">Candidater maintenant</a>
+                <button
+                  type="button"
+                  onClick={() => setShowApplyModal(true)}
+                  className="w-full block text-center py-3 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-opacity-90 transition"
+                >
+                  Candidater maintenant
+                </button>
                 <button className="w-full py-3 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition">Sauvegarder l'offre</button>
               </div>
             </div>
           </aside>
         </div>
       </div>
+
+      {showApplyModal && job && (
+        <ApplyModal job={job} user={user} onClose={() => setShowApplyModal(false)} />
+      )}
     </main>
+  )
+}
+
+
+function ApplyModal({ job, user, onClose }) {
+  const [cvFile, setCvFile] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [status, setStatus] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [cvDragActive, setCvDragActive] = useState(false)
+  const [docsDragActive, setDocsDragActive] = useState(false)
+  const cvInputRef = useRef(null)
+  const docsInputRef = useRef(null)
+  const [form, setForm] = useState(() => ({
+    fullName: user?.fullName || '',
+    email: user?.email || '',
+    message: '',
+  }))
+
+  useEffect(() => {
+    if (user?.email) {
+      setForm((prev) => (prev.email ? prev : { ...prev, email: user.email }))
+    }
+  }, [user?.email])
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const formatFileSize = (bytes) => {
+    if (!Number.isFinite(bytes)) return ''
+    const units = ['octets', 'Ko', 'Mo', 'Go']
+    let value = bytes
+    let unitIndex = 0
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024
+      unitIndex += 1
+    }
+    const digits = value < 10 && unitIndex > 0 ? 1 : 0
+    return `${value.toFixed(digits)} ${units[unitIndex]}`
+  }
+
+  const handleCvSelection = (fileList) => {
+    const file = fileList?.[0]
+    if (file) {
+      setCvFile(file)
+      setStatus(null)
+    }
+  }
+
+  const handleDocsSelection = (fileList) => {
+    if (!fileList) return
+    const existingKeys = new Set(documents.map((file) => `${file.name}-${file.size}`))
+    const additions = []
+    Array.from(fileList).forEach((file) => {
+      const key = `${file.name}-${file.size}`
+      if (!existingKeys.has(key)) additions.push(file)
+    })
+    if (additions.length > 0) {
+      setDocuments((prev) => [...prev, ...additions])
+      setStatus(null)
+    }
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (!cvFile) {
+      setStatus({ type: 'error', text: 'Veuillez ajouter votre CV avant de postuler.' })
+      return
+    }
+
+    if (!form.email) {
+      setStatus({ type: 'error', text: 'Veuillez renseigner votre email.' })
+      return
+    }
+    setIsSubmitting(true)
+    setStatus(null)
+    try {
+      const endpoint = `${API_BASE_URL.replace(/\/$/, '')}/applications`
+      const payload = new FormData()
+      payload.append('jobId', String(job.id))
+      if (job.title) payload.append('jobTitle', job.title)
+      if (job.company) payload.append('company', job.company)
+      if (user?.id) payload.append('candidateId', user.id)
+      if (form.fullName) payload.append('candidateName', form.fullName)
+      payload.append('candidateEmail', form.email)
+      if (form.message) payload.append('message', form.message)
+      payload.append('cv', cvFile, cvFile.name)
+      documents.forEach((file) => payload.append('documents', file, file.name))
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: payload,
+      })
+
+      if (!res.ok) {
+        const detail = await res.text()
+        throw new Error(detail || 'Échec de la candidature')
+      }
+
+      await res.json()
+      setStatus({ type: 'success', text: 'Candidature envoyée avec succès !' })
+      setCvFile(null)
+      setDocuments([])
+      setForm((prev) => ({ ...prev, message: '' }))
+    } catch (error) {
+      console.error('Failed to submit application', error)
+      setStatus({ type: 'error', text: error?.message || "Une erreur est survenue lors de l'envoi." })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-3 py-6 sm:px-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-h-[calc(100vh-3rem)] max-w-3xl overflow-y-auto rounded-4xl border border-border/70 bg-white/98 p-6 shadow-2xl backdrop-blur-md md:p-8"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-muted-foreground transition hover:border-primary hover:text-primary"
+          aria-label="Fermer la fenêtre de candidature"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+
+        <div className="space-y-4 pr-10 md:pr-12">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-primary">Candidature</p>
+            <h2 className="text-2xl font-bold text-foreground sm:text-3xl">{job.title}</h2>
+            <p className="text-sm text-muted-foreground">{job.company}</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Nom complet</span>
+              <input
+                name="fullName"
+                value={form.fullName}
+                onChange={handleChange}
+                type="text"
+                placeholder="Votre nom"
+                className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Email</span>
+              <input
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                type="email"
+                required
+                placeholder="vous@example.com"
+                className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </label>
+          </div>
+
+          {status && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                status.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-500/10 text-emerald-700'
+                  : 'border-red-200 bg-red-500/10 text-red-600'
+              }`}
+            >
+              {status.text}
+            </div>
+          )}
+
+          <form className="space-y-8" onSubmit={handleSubmit}>
+            <section className="space-y-3">
+              <h3 className="text-lg font-semibold text-foreground">Votre CV</h3>
+              <div
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'copy'
+                  setCvDragActive(true)
+                }}
+                onDragLeave={() => setCvDragActive(false)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setCvDragActive(false)
+                  handleCvSelection(event.dataTransfer.files)
+                }}
+                className={`flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed p-8 text-center transition ${
+                  cvDragActive ? 'border-primary bg-primary/5' : 'border-border/60 bg-secondary/40'
+                }`}
+              >
+                {cvFile ? (
+                  <div className="flex w-full max-w-lg items-center justify-between rounded-2xl border border-border/60 bg-white px-4 py-3 text-left">
+                    <div className="flex items-center gap-3">
+                      <FileText className="text-primary" size={22} />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{cvFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(cvFile.size)}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCvFile(null)}
+                      className="text-muted-foreground transition hover:text-red-500"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="text-primary" size={28} />
+                    <p className="text-sm text-muted-foreground">
+                      Glissez-déposez votre CV ici ou
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => cvInputRef.current?.click()}
+                      className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
+                    >
+                      Choisir un fichier
+                    </button>
+                    <p className="text-xs text-muted-foreground">Formats acceptés : PDF, DOC, DOCX (5 Mo max)</p>
+                  </>
+                )}
+                <input
+                  ref={cvInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={(event) => handleCvSelection(event.target.files)}
+                />
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground">Documents supplémentaires</h3>
+                {documents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDocuments([])}
+                    className="text-xs font-medium text-primary transition hover:underline"
+                  >
+                    Tout retirer
+                  </button>
+                )}
+              </div>
+              <div
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'copy'
+                  setDocsDragActive(true)
+                }}
+                onDragLeave={() => setDocsDragActive(false)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setDocsDragActive(false)
+                  handleDocsSelection(event.dataTransfer.files)
+                }}
+                className={`rounded-3xl border-2 border-dashed p-6 transition ${
+                  docsDragActive ? 'border-primary bg-primary/5' : 'border-border/60 bg-secondary/30'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <Paperclip className="text-primary" size={24} />
+                  <p className="text-sm text-muted-foreground">
+                    Ajoutez portfolios, lettres de motivation ou autres pièces jointes.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => docsInputRef.current?.click()}
+                      className="rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
+                    >
+                      Sélectionner des fichiers
+                    </button>
+                    <span className="text-xs text-muted-foreground">ou glissez-déposez ici</span>
+                  </div>
+                  <input
+                    ref={docsInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => handleDocsSelection(event.target.files)}
+                  />
+                </div>
+
+                {documents.length > 0 && (
+                  <ul className="mt-5 space-y-2">
+                    {documents.map((file, index) => (
+                      <li
+                        key={`${file.name}-${file.size}-${index}`}
+                        className="flex items-center justify-between rounded-2xl border border-border/60 bg-white px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Paperclip className="text-primary" size={18} />
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDocuments((prev) => prev.filter((_, idx) => idx !== index))}
+                          className="text-muted-foreground transition hover:text-red-500"
+                          aria-label={`Retirer ${file.name}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="text-lg font-semibold text-foreground">Message</h3>
+              <textarea
+                name="message"
+                value={form.message}
+                onChange={handleChange}
+                rows={4}
+                placeholder="Présentez brièvement votre motivation (optionnel)."
+                className="w-full rounded-3xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </section>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                En postulant, vous acceptez que vos informations soient partagées avec {job.company} pour cette opportunité.
+              </p>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Envoyer ma candidature
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   )
 }
 
