@@ -25,6 +25,7 @@ export default function Navbar() {
   const recruiterLinks = [
     { label: "Mes offres", to: "/mes-offres", type: "route" },
     { label: "Recommandations", to: "/recommandations", type: "route" },
+    { label: "Mon plan", to: "/recruiter/plan", type: "route" },
   ]
   const activeLinks = user ? (user.role === 'recruiter' ? recruiterLinks : candidateLinks) : primaryLinks
 

@@ -9,6 +9,7 @@ const AuthContext = createContext({
   toggleSavedJob: () => {},
   addApplication: () => {},
   updateApplicationStatus: () => {},
+  updateUser: () => {},
 })
 
 export function AuthProvider({ children }) {
@@ -16,11 +17,21 @@ export function AuthProvider({ children }) {
   const [savedJobs, setSavedJobs] = useState([])
   const [applications, setApplications] = useState([])
 
+  const enforceRecruiterSubscription = useCallback((profile) => {
+    if (profile && profile.role === 'recruiter') {
+      return { ...profile, isSubscribed: true }
+    }
+    return profile
+  }, [])
+
   useEffect(() => {
     const readStorageJson = (key, setter) => {
       try {
         const raw = localStorage.getItem(key)
-        if (raw) setter(JSON.parse(raw))
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          setter(key === 'sp.auth.user' ? enforceRecruiterSubscription(parsed) : parsed)
+        }
       } catch (error) {
         console.warn(`Failed to read ${key} from storage`, error)
       }
@@ -29,16 +40,17 @@ export function AuthProvider({ children }) {
     readStorageJson('sp.auth.user', setUser)
     readStorageJson('sp.auth.savedJobs', setSavedJobs)
     readStorageJson('sp.auth.applications', setApplications)
-  }, [])
+  }, [enforceRecruiterSubscription])
 
   const login = useCallback((u) => {
-    setUser(u)
+    const nextUser = enforceRecruiterSubscription(u)
+    setUser(nextUser)
     try {
-      localStorage.setItem('sp.auth.user', JSON.stringify(u))
+      localStorage.setItem('sp.auth.user', JSON.stringify(nextUser))
     } catch (error) {
       console.warn('Failed to persist auth user', error)
     }
-  }, [])
+  }, [enforceRecruiterSubscription])
 
   const logout = useCallback(() => {
     setUser(null)
@@ -95,9 +107,25 @@ export function AuthProvider({ children }) {
     })
   }, [])
 
+  const updateUser = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) {
+        return prev
+      }
+      const merged = { ...prev, ...partial }
+      const next = enforceRecruiterSubscription(merged)
+      try {
+        localStorage.setItem('sp.auth.user', JSON.stringify(next))
+      } catch (error) {
+        console.warn('Failed to persist auth user update', error)
+      }
+      return next
+    })
+  }, [enforceRecruiterSubscription])
+
   const value = useMemo(
-    () => ({ user, login, logout, savedJobs, toggleSavedJob, applications, addApplication, updateApplicationStatus }),
-    [user, login, logout, savedJobs, toggleSavedJob, applications, addApplication, updateApplicationStatus]
+    () => ({ user, login, logout, savedJobs, toggleSavedJob, applications, addApplication, updateApplicationStatus, updateUser }),
+    [user, login, logout, savedJobs, toggleSavedJob, applications, addApplication, updateApplicationStatus, updateUser]
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
