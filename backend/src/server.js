@@ -1,7 +1,11 @@
 const express = require('express')
 const cors = require('cors')
 const morgan = require('morgan')
-require('dotenv').config()
+const path = require('path')
+const envPath = path.resolve(__dirname, '..', '.env')
+require('dotenv').config({ path: envPath })
+// eslint-disable-next-line no-console
+console.log(`[env] Loaded variables from ${envPath}`)
 const ENV = require('./config/env')
 const { errorHandler } = require('./middlewares/errorHandler')
 const cvRoutes = require('./routes/cv')
@@ -12,7 +16,6 @@ const recruitersRoutes = require('./routes/recruiters')
 const offersRoutes = require('./routes/offers')
 const applicationsRoutes = require('./routes/applications')
 const mongoose = require('mongoose')
-const path = require('path')
 const net = require('net')
 const os = require('os')
 
@@ -39,6 +42,8 @@ app.use(errorHandler)
 
 async function start() {
   const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/recruiting'
+  // eslint-disable-next-line no-console
+  console.log('[mongo] Using connection string prefix:', uri.slice(0, Math.min(40, uri.length)) + '...')
   // Set a short selection timeout to fail fast in dev if Mongo isn't running
   attachMongoDebugLogs(uri)
   await preflightTcpCheck(uri)
