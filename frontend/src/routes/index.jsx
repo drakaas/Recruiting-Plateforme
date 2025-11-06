@@ -17,6 +17,9 @@ const LoginPage = lazy(() => import('../pages/Auth/Login'))
 const EspaceCandidatPage = lazy(() => import('../pages/Candidat/Espace'))
 const CandidateProfileReadOnlyPage = lazy(() => import('../pages/Candidat/Profile'))
 const RecruiterSignupPage = lazy(() => import('../pages/Auth/RecruiterSignup'))
+const VideoInterviewInstructionsPage = lazy(() => import('../pages/Candidat/VideoInterviewInstructions'))
+const VideoInterviewQuizPage = lazy(() => import('../pages/Candidat/VideoInterviewQuiz'))
+const VideoInterviewResultPage = lazy(() => import('../pages/Candidat/VideoInterviewResult'))
 
 export default function AppRoutes() {
   return (
@@ -34,6 +37,9 @@ export default function AppRoutes() {
               <Route path="/candidat/creer-profil" element={<CreateCandidateProfilePage />} />
             <Route path="/candidat/profil" element={<CandidateProfileReadOnlyPage />} />
             <Route path="/candidat/espace" element={<EspaceCandidatPage />} />
+            <Route path="/candidat/instructions" element={<VideoInterviewInstructionsPage />} />
+            <Route path="/candidat/quiz" element={<VideoInterviewQuizPage />} />
+            <Route path="/candidat/quiz/resultat" element={<VideoInterviewResultPage />} />
             <Route path="/recruiter/signup" element={<RecruiterSignupPage />} />
               <Route path="/recruiter" element={<RecruiterPage />} />
               <Route path="/mes-offres" element={<MyOffersPage />} />

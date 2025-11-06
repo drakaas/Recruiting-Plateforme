@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapPin, Clock, DollarSign, ArrowLeft, Upload, FileText, X, Paperclip, Trash2, Loader2 } from 'lucide-react'
 import { JOBS } from './data'
@@ -13,17 +13,17 @@ export default function JobDetailsPage() {
     if (Number.isFinite(numericId)) return JOBS.find((j) => j.id === numericId) || JOBS[0]
     return JOBS[0]
   })
-  const [loading, setLoading] = useState(false)
   const [showApplyModal, setShowApplyModal] = useState(false)
-  const { user } = useAuth()
+  const { user, savedJobs, toggleSavedJob } = useAuth()
 
   // Always have a job from static data for testing
 
   useEffect(() => {
     let cancelled = false
 
-    const mapOfferToJob = (offer) => {
-      const companyName = offer?.company?.name || offer?.companyName || job.company || 'Entreprise'
+    const mapOfferToJob = (offer, fallbackJob) => {
+      const baseJob = fallbackJob || JOBS[0]
+      const companyName = offer?.company?.name || offer?.companyName || baseJob.company || 'Entreprise'
       const skills = Array.isArray(offer?.skills) ? offer.skills : []
       const keywords = Array.isArray(offer?.keywords) ? offer.keywords : []
 
@@ -35,41 +35,41 @@ export default function JobDetailsPage() {
         ? offer.mission.split(/\n|\r|\.\s+/).map((m) => m.trim()).filter((m) => m.length > 0)
         : []
 
-      const descriptionBase = offer?.mission || job.description || ''
+      const descriptionBase = offer?.mission || baseJob.description || ''
       const descriptionWithKeywords = keywords.length
         ? `${descriptionBase}\n\nMots-clés: ${keywords.join(', ')}`
         : descriptionBase
 
       const companyInfo = {
         name: companyName,
-        description: offer?.company?.description || job.companyInfo?.description || undefined,
-        imageUrl: offer?.company?.imageUrl || job.companyInfo?.imageUrl || undefined,
-        sector: job.companyInfo?.sector || undefined,
-        employees: job.companyInfo?.employees || undefined,
-        founded: job.companyInfo?.founded || undefined,
-        culture: job.companyInfo?.culture || undefined,
-        email: offer?.company?.email || job.companyInfo?.email || undefined,
-        phone: job.companyInfo?.phone || undefined,
-        website: job.companyInfo?.website || undefined,
+        description: offer?.company?.description || baseJob.companyInfo?.description || undefined,
+        imageUrl: offer?.company?.imageUrl || baseJob.companyInfo?.imageUrl || undefined,
+        sector: baseJob.companyInfo?.sector || undefined,
+        employees: baseJob.companyInfo?.employees || undefined,
+        founded: baseJob.companyInfo?.founded || undefined,
+        culture: baseJob.companyInfo?.culture || undefined,
+        email: offer?.company?.email || baseJob.companyInfo?.email || undefined,
+        phone: baseJob.companyInfo?.phone || undefined,
+        website: baseJob.companyInfo?.website || undefined,
       }
 
       return {
         // preserve original fields when missing from backend
-        ...job,
+        ...baseJob,
         id: offer?.id || offer?._id || id,
-        title: offer?.title || job.title,
+        title: offer?.title || baseJob.title,
         company: companyName,
-        location: offer?.location || job.location,
-        type: offer?.contractType || job.type,
-        salary: offer?.salary || job.salary,
+        location: offer?.location || baseJob.location,
+        type: offer?.contractType || baseJob.type,
+        salary: offer?.salary || baseJob.salary,
         tags: [],
         description: descriptionWithKeywords,
-        missions: missions.length ? missions : job.missions,
-        idealProfile: idealProfile.length ? idealProfile : job.idealProfile,
+        missions: missions.length ? missions : baseJob.missions,
+        idealProfile: idealProfile.length ? idealProfile : baseJob.idealProfile,
         companyInfo,
-        companyLogoUrl: offer?.company?.imageUrl || job.companyLogoUrl || undefined,
-        benefits: Array.isArray(job.benefits) ? job.benefits : [],
-        additionalInfo: job.additionalInfo || undefined,
+        companyLogoUrl: offer?.company?.imageUrl || baseJob.companyLogoUrl || undefined,
+        benefits: Array.isArray(baseJob.benefits) ? baseJob.benefits : [],
+        additionalInfo: baseJob.additionalInfo || undefined,
       }
     }
 
@@ -77,24 +77,22 @@ export default function JobDetailsPage() {
       // If id looks like a Mongo id, fetch; otherwise keep static
       const looksLikeMongoId = typeof id === 'string' && /^[a-f\d]{24}$/i.test(id)
       if (!looksLikeMongoId) return
-      setLoading(true)
       try {
         const endpoint = `${API_BASE_URL.replace(/\/$/, '')}/offers/${id}`
         const res = await fetch(endpoint)
         if (!res.ok) throw new Error('Failed to load offer')
         const offer = await res.json()
         if (!cancelled && offer) {
-          setJob(mapOfferToJob(offer))
+          setJob((prev) => mapOfferToJob(offer, prev))
         }
-      } catch (_e) {
+      } catch (error) {
+        console.warn('Failed to load offer, fallback to static data', error)
         // Silent fallback to static
         if (!cancelled) {
           const numericId = Number(id)
           const fallback = Number.isFinite(numericId) ? (JOBS.find((j) => j.id === numericId) || JOBS[0]) : JOBS[0]
           setJob(fallback)
         }
-      } finally {
-        if (!cancelled) setLoading(false)
       }
     }
 
@@ -272,7 +270,19 @@ export default function JobDetailsPage() {
                 >
                   Candidater maintenant
                 </button>
-                <button className="w-full py-3 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition">Sauvegarder l'offre</button>
+                <button
+                  type="button"
+                  onClick={() => toggleSavedJob({
+                    id: job.id,
+                    title: job.title,
+                    company: job.company,
+                    location: job.location,
+                    type: job.type,
+                  })}
+                  className={`w-full py-3 border font-semibold rounded-lg transition ${savedJobs.some((item) => item.id === job.id) ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 'border-primary text-primary hover:bg-primary/5'}`}
+                >
+                  {savedJobs.some((item) => item.id === job.id) ? 'Offre sauvegardée' : "Sauvegarder l'offre"}
+                </button>
               </div>
             </div>
           </aside>
@@ -296,6 +306,8 @@ function ApplyModal({ job, user, onClose }) {
   const [docsDragActive, setDocsDragActive] = useState(false)
   const cvInputRef = useRef(null)
   const docsInputRef = useRef(null)
+  const navigate = useNavigate()
+  const { addApplication } = useAuth()
   const [form, setForm] = useState(() => ({
     fullName: user?.fullName || '',
     email: user?.email || '',
@@ -384,11 +396,33 @@ function ApplyModal({ job, user, onClose }) {
         throw new Error(detail || 'Échec de la candidature')
       }
 
-      await res.json()
+      const response = await res.json()
       setStatus({ type: 'success', text: 'Candidature envoyée avec succès !' })
       setCvFile(null)
       setDocuments([])
       setForm((prev) => ({ ...prev, message: '' }))
+      const interviewConfig = {
+        jobId: job.id,
+        jobTitle: job.title,
+        company: job.company,
+        interviewDuration: 8,
+        questionCount: 3,
+      }
+      addApplication({
+        jobId: job.id,
+        jobTitle: job.title,
+        company: job.company,
+        location: job.location,
+        type: job.type,
+        status: 'pending-review',
+        appliedAt: new Date().toISOString(),
+        interviewConfig,
+        applicationId: response?.id || null,
+      })
+      onClose()
+      navigate('/candidat/instructions', {
+        state: interviewConfig,
+      })
     } catch (error) {
       console.error('Failed to submit application', error)
       setStatus({ type: 'error', text: error?.message || "Une erreur est survenue lors de l'envoi." })
