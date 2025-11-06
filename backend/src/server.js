@@ -42,10 +42,14 @@ async function start() {
   // Set a short selection timeout to fail fast in dev if Mongo isn't running
   attachMongoDebugLogs(uri)
   await preflightTcpCheck(uri)
+  
+  // Connection options optimized for MongoDB Atlas (mongodb+srv://)
+  const isAtlas = uri.startsWith('mongodb+srv://')
   await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
-    family: 4, // force IPv4 on Windows
+    serverSelectionTimeoutMS: isAtlas ? 30000 : 5000, // Atlas needs more time
+    connectTimeoutMS: isAtlas ? 30000 : 5000,
+    // Don't force IPv4 for Atlas (it uses DNS resolution)
+    ...(isAtlas ? {} : { family: 4 }),
   })
   app.listen(ENV.PORT, () => {
     // eslint-disable-next-line no-console

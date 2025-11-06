@@ -26,15 +26,18 @@ cd backend
 npm install
 
 # Créer un fichier .env avec les variables d'environnement
-# PORT=5000
-# MONGODB_URI=mongodb://localhost:27017/recruiting-platform
-# JWT_SECRET=your_jwt_secret_key
+# Le fichier .env est déjà configuré avec MongoDB Atlas
+# Si vous devez le recréer, utilisez ce format :
+# MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/recruiting?appName=AppName
+# PORT=4000
+# NODE_ENV=development
+# LOG_LEVEL=dev
 
 # Démarrer le serveur de développement
 npm run dev
 ```
 
-Le backend sera accessible sur `http://localhost:5000`
+Le backend sera accessible sur `http://localhost:4000`
 
 ### 3. Configuration du Frontend
 
@@ -94,10 +97,11 @@ Recruiting-Plateforme/
 Créez un fichier `.env` dans le dossier `backend` avec les variables suivantes :
 
 ```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/recruiting-platform
-JWT_SECRET=your_super_secret_jwt_key
-CORS_ORIGIN=http://localhost:5173
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/recruiting?appName=AppName
+PORT=4000
+NODE_ENV=development
+LOG_LEVEL=dev
+CV_KEY=your_gemini_api_key_here
 ```
 
 ## 🚀 Déploiement
