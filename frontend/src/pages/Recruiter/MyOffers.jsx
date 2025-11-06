@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "../../context/useAuth"
 import { useApi } from "../../hooks/useApi"
+import { API_BASE_URL } from "../../utils/config"
 
 const CONTRACT_TYPES = [
   "CDI",
@@ -887,9 +888,63 @@ function AddOfferModal({ onClose, onSubmit, newOffer, onChange, onAddSkill, onRe
 }
 
 function OfferCandidatesModal({ offer, onClose }) {
-  const interviewedCandidates = (offer.candidates ?? [])
-    .filter((candidate) => typeof candidate.interviewScore === "number")
-    .sort((candidateA, candidateB) => (candidateB.interviewScore ?? 0) - (candidateA.interviewScore ?? 0))
+  const [interviewedCandidates, setInterviewedCandidates] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        // Load applications for this offer and keep only those with preselectionne (interview passed)
+        const res = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/applications?offerId=${encodeURIComponent(offer.id)}`)
+        if (!res.ok) throw new Error('apps_failed')
+        const apps = await res.json()
+        const passed = (Array.isArray(apps) ? apps : []).filter((a) => a.status === 'preselectionne')
+
+        // Enrich each application with candidate details
+        const enriched = await Promise.all(passed.map(async (a) => {
+          let name = 'Candidat'
+          let stage = ''
+          let feedback = ''
+          try {
+            if (a.candidateId) {
+              const u = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/users/${encodeURIComponent(a.candidateId)}`)
+              if (u.ok) {
+                const user = await u.json()
+                const first = user?.profile?.firstName || ''
+                const last = user?.profile?.lastName || ''
+                const email = user?.email || ''
+                name = [first, last].filter(Boolean).join(' ').trim() || (email ? email.split('@')[0] : 'Candidat')
+                stage = user?.profile?.city || ''
+              }
+            }
+          } catch (_e) {}
+
+          return {
+            name,
+            stage,
+            feedback,
+            interviewScore: typeof a?.interviewScore === 'number' ? a.interviewScore : null,
+            score: typeof a?.compatibilityScore === 'number' ? a.compatibilityScore : null,
+            status: 'invited',
+          }
+        }))
+
+        const sorted = enriched
+          .filter((c) => typeof c.interviewScore === 'number')
+          .sort((a, b) => (b.interviewScore ?? 0) - (a.interviewScore ?? 0))
+
+        if (!cancelled) setInterviewedCandidates(sorted)
+      } catch (_e) {
+        // Fallback to existing offer.candidates if backend aggregation fails
+        const fallback = (offer.candidates ?? [])
+          .filter((candidate) => typeof candidate.interviewScore === 'number')
+          .sort((a, b) => (b.interviewScore ?? 0) - (a.interviewScore ?? 0))
+        if (!cancelled) setInterviewedCandidates(fallback)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [offer.id, offer.candidates])
 
   return (
     <div
