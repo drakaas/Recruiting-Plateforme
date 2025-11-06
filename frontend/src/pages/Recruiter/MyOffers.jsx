@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   Plus,
@@ -16,6 +16,10 @@ import {
   Award,
   Users,
   ChevronDown,
+  Mail,
+  Share2,
+  CheckCircle2,
+  UserX,
   Lock,
 } from "lucide-react"
 import { useAuth } from "../../context/useAuth"
@@ -77,6 +81,7 @@ export default function MyOffers() {
   const [selectedStatus, setSelectedStatus] = useState("Toutes")
   const [showAddModal, setShowAddModal] = useState(false)
   const [activeOfferId, setActiveOfferId] = useState(null)
+  const [candidateActionMessage, setCandidateActionMessage] = useState(null)
   const [newOffer, setNewOffer] = useState({
     title: "",
     department: `${recruiterCompanyName} · Département`,
@@ -141,6 +146,16 @@ export default function MyOffers() {
       }
     })()
   }, [isRecruiter, user?.id, recruiterCompanyName, request])
+
+  useEffect(() => {
+    if (!candidateActionMessage) return undefined
+
+    const timeoutId = window.setTimeout(() => {
+      setCandidateActionMessage(null)
+    }, 3500)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [candidateActionMessage])
   const resetForm = () => {
     setNewOffer({
       title: "",
@@ -178,11 +193,86 @@ export default function MyOffers() {
 
   const openCandidatesModal = (offerId) => {
     if (!isSubscribed) return
+    setCandidateActionMessage(null)
     setActiveOfferId(offerId)
   }
 
   const closeCandidatesModal = () => {
     setActiveOfferId(null)
+    setCandidateActionMessage(null)
+  }
+
+  const updateCandidate = (offerId, candidateData, updater) => {
+    setOffers((prevOffers) =>
+      prevOffers.map((offer) => {
+        if (offer.id !== offerId) {
+          return offer
+        }
+
+        const existingCandidates = Array.isArray(offer.candidates) ? offer.candidates : []
+        const candidateName = candidateData.name
+        let found = false
+        const updatedCandidates = existingCandidates.map((candidate) => {
+          if (candidate.name === candidateName) {
+            found = true
+            return updater(candidate)
+          }
+          return candidate
+        })
+
+        if (!found) {
+          updatedCandidates.push(updater({ ...candidateData }))
+        }
+
+        return { ...offer, candidates: updatedCandidates }
+      }),
+    )
+  }
+
+  const handleInviteCandidate = (offerId, candidate) => {
+    updateCandidate(offerId, candidate, (currentCandidate) => {
+      if (currentCandidate.status === "recruited" || currentCandidate.status === "refused") {
+        return currentCandidate
+      }
+      return {
+        ...currentCandidate,
+        status: "invited",
+        stage: "Invitation envoyée pour entretien",
+      }
+    })
+    setCandidateActionMessage({ type: "success", text: "Invitation envoyée au candidat pour planifier l'entretien." })
+  }
+
+  const handleRecommendCandidate = (offerId, candidate) => {
+    updateCandidate(offerId, candidate, (currentCandidate) => {
+      if (currentCandidate.status === "recruited" || currentCandidate.status === "refused") {
+        return currentCandidate
+      }
+      return {
+        ...currentCandidate,
+        status: "recommended",
+        stage: "Profil recommandé au Success Pool",
+      }
+    })
+    setCandidateActionMessage({ type: "info", text: "Candidat recommandé aux autres recruteurs Success Pool." })
+  }
+
+  const handleAcceptCandidate = (offerId, candidate) => {
+    updateCandidate(offerId, candidate, (currentCandidate) => ({
+      ...currentCandidate,
+      status: "recruited",
+      stage: "Candidat accepté - Contrat en préparation",
+    }))
+    setCandidateActionMessage({ type: "success", text: "Candidat accepté pour cette offre." })
+  }
+
+  const handleRejectCandidate = (offerId, candidate) => {
+    updateCandidate(offerId, candidate, (currentCandidate) => ({
+      ...currentCandidate,
+      status: "refused",
+      stage: "Candidature refusée",
+    }))
+    setCandidateActionMessage({ type: "danger", text: "Candidat marqué comme refusé." })
   }
 
   const handleAddSkill = () => {
@@ -553,7 +643,17 @@ export default function MyOffers() {
         </div>
       </section>
     </main>
-      {isSubscribed && selectedOffer && <OfferCandidatesModal offer={selectedOffer} onClose={closeCandidatesModal} />}
+      {isSubscribed && selectedOffer && (
+        <OfferCandidatesModal
+          offer={selectedOffer}
+          onClose={closeCandidatesModal}
+          onInvite={handleInviteCandidate}
+          onRecommend={handleRecommendCandidate}
+          onAccept={handleAcceptCandidate}
+          onReject={handleRejectCandidate}
+          candidateActionMessage={candidateActionMessage}
+        />
+      )}
       {isSubscribed && showAddModal && (
         <AddOfferModal
           onClose={handleCloseModal}
@@ -887,96 +987,138 @@ function AddOfferModal({ onClose, onSubmit, newOffer, onChange, onAddSkill, onRe
   )
 }
 
-function OfferCandidatesModal({ offer, onClose }) {
+function OfferCandidatesModal({ offer, onClose, onInvite, onRecommend, onAccept, onReject, candidateActionMessage }) {
   const [interviewedCandidates, setInterviewedCandidates] = useState([])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        // Load applications for this offer and keep only those with preselectionne (interview passed)
-        const res = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/applications?offerId=${encodeURIComponent(offer.id)}`)
-        if (!res.ok) throw new Error('apps_failed')
+        const res = await fetch(`${API_BASE_URL.replace(/\/$/, "")}/applications?offerId=${encodeURIComponent(offer.id)}`)
+        if (!res.ok) throw new Error("applications_fetch_failed")
         const apps = await res.json()
-        const passed = (Array.isArray(apps) ? apps : []).filter((a) => a.status === 'preselectionne')
+        const passed = (Array.isArray(apps) ? apps : []).filter((application) => application.status === "preselectionne")
 
-        // Enrich each application with candidate details
-        const enriched = await Promise.all(passed.map(async (a) => {
-          let name = 'Candidat'
-          let stage = ''
-          let feedback = ''
-          try {
-            if (a.candidateId) {
-              const u = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/users/${encodeURIComponent(a.candidateId)}`)
-              if (u.ok) {
-                const user = await u.json()
-                const first = user?.profile?.firstName || ''
-                const last = user?.profile?.lastName || ''
-                const email = user?.email || ''
-                name = [first, last].filter(Boolean).join(' ').trim() || (email ? email.split('@')[0] : 'Candidat')
-                stage = user?.profile?.city || ''
+        const enriched = await Promise.all(
+          passed.map(async (application) => {
+            let name = "Candidat"
+            let stage = ""
+            let feedback = application?.notes || ""
+            try {
+              if (application.candidateId) {
+                const userResponse = await fetch(
+                  `${API_BASE_URL.replace(/\/$/, "")}/users/${encodeURIComponent(application.candidateId)}`,
+                )
+                if (userResponse.ok) {
+                  const user = await userResponse.json()
+                  const firstName = user?.profile?.firstName || ""
+                  const lastName = user?.profile?.lastName || ""
+                  const email = user?.email || ""
+                  name = [firstName, lastName].filter(Boolean).join(" ").trim() || email.split("@")[0] || "Candidat"
+                  stage = user?.profile?.city || ""
+                }
               }
+            } catch (innerError) {
+              console.warn("Impossible de récupérer le profil du candidat", innerError)
             }
-          } catch (_e) {}
 
-          return {
-            name,
-            stage,
-            feedback,
-            interviewScore: typeof a?.interviewScore === 'number' ? a.interviewScore : null,
-            score: typeof a?.compatibilityScore === 'number' ? a.compatibilityScore : null,
-            status: 'invited',
-          }
-        }))
+            return {
+              id: application?.candidateId || application?.id || `${offer.id}-${Math.random().toString(36).slice(2)}`,
+              name,
+              stage,
+              feedback,
+              interviewScore: typeof application?.interviewScore === "number" ? application.interviewScore : null,
+              score: typeof application?.compatibilityScore === "number" ? application.compatibilityScore : null,
+              status: application?.statusMapping || "invited",
+            }
+          }),
+        )
 
         const sorted = enriched
-          .filter((c) => typeof c.interviewScore === 'number')
-          .sort((a, b) => (b.interviewScore ?? 0) - (a.interviewScore ?? 0))
+          .filter((candidate) => typeof candidate.interviewScore === "number")
+          .sort((candidateA, candidateB) => (candidateB.interviewScore ?? 0) - (candidateA.interviewScore ?? 0))
 
         if (!cancelled) setInterviewedCandidates(sorted)
-      } catch (_e) {
-        // Fallback to existing offer.candidates if backend aggregation fails
+      } catch (error) {
+        console.error("Échec du chargement des candidatures", error)
         const fallback = (offer.candidates ?? [])
-          .filter((candidate) => typeof candidate.interviewScore === 'number')
-          .sort((a, b) => (b.interviewScore ?? 0) - (a.interviewScore ?? 0))
+          .filter((candidate) => typeof candidate.interviewScore === "number")
+          .map((candidate) => ({
+            ...candidate,
+            id: candidate.id || candidate.candidateId || `${offer.id}-${candidate.name}`,
+          }))
+          .sort((candidateA, candidateB) => (candidateB.interviewScore ?? 0) - (candidateA.interviewScore ?? 0))
         if (!cancelled) setInterviewedCandidates(fallback)
       }
     }
+
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [offer.id, offer.candidates])
+
+  const updateLocalCandidate = useCallback((candidateData, updater) => {
+    setInterviewedCandidates((previous) =>
+      previous.map((candidate) => {
+        const matchesId = candidate.id && candidateData.id ? candidate.id === candidateData.id : false
+        const matchesName = candidate.name === candidateData.name
+        return matchesId || matchesName ? updater(candidate) : candidate
+      }),
+    )
+  }, [])
+
+  const statusMessageClass = useMemo(() => {
+    if (!candidateActionMessage) return ""
+    switch (candidateActionMessage.type) {
+      case "success":
+        return "border-emerald-200 bg-emerald-50 text-emerald-700"
+      case "info":
+        return "border-sky-200 bg-sky-50 text-sky-700"
+      case "danger":
+        return "border-red-200 bg-red-50 text-red-600"
+      default:
+        return "border-border/70 bg-white text-muted-foreground"
+    }
+  }, [candidateActionMessage])
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-h-[calc(100vh-3rem)] max-w-4xl overflow-y-auto rounded-4xl border border-border/70 bg-white/98 p-6 shadow-2xl backdrop-blur-md sm:p-9"
+        className="relative w-full max-h-[calc(100vh-3rem)] max-w-4xl overflow-y-auto rounded-[40px] border border-primary/20 bg-white/97 p-6 shadow-2xl backdrop-blur-md sm:p-10"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-border/70 text-muted-foreground transition hover:border-primary hover:text-primary"
+          className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition hover:border-primary hover:text-primary"
           aria-label="Fermer la liste des candidats"
         >
           <X size={18} strokeWidth={2} />
         </button>
 
-        <header className="space-y-2">
+        <header className="space-y-2 pr-12">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">{offer.department}</p>
-          <h2 className="text-2xl font-semibold text-foreground">Candidats pour {offer.title}</h2>
-          <p className="text-sm text-muted-foreground">
-            Retrouvez ici les profils ayant complété un entretien, avec leurs scores de compatibilité et de restitution.
+          <h2 className="text-2xl font-semibold text-foreground sm:text-3xl">Candidats pour {offer.title}</h2>
+          <p className="text-sm text-muted-foreground sm:max-w-2xl">
+            Retrouvez ici les profils ayant complété un entretien, avec leurs scores de compatibilité et de restitution. Déployez les actions adaptées en un clic.
           </p>
         </header>
 
-        <div className="mt-6 space-y-4">
+        {candidateActionMessage && (
+          <div className={`mt-6 rounded-3xl border px-5 py-4 text-sm font-medium shadow-sm ${statusMessageClass}`}>
+            {candidateActionMessage.text}
+          </div>
+        )}
+
+        <div className="mt-6 space-y-5">
           {interviewedCandidates.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-border/60 bg-secondary/40 px-4 py-6 text-center text-sm text-muted-foreground">
+            <div className="rounded-3xl border border-dashed border-primary/30 bg-primary/5 px-6 py-10 text-center text-sm text-primary">
               Aucun candidat n'a encore finalisé d'entretien pour cette opportunité.
             </div>
           ) : (
@@ -985,25 +1127,92 @@ function OfferCandidatesModal({ offer, onClose }) {
               const statusBadgeClass = CANDIDATE_STATUS_STYLES[statusKey] ?? CANDIDATE_STATUS_STYLES.pending
               const statusLabel = CANDIDATE_STATUS_LABELS[statusKey] ?? "En suivi"
 
+              const isInvited = candidate.status === "invited"
+              const isRecommended = candidate.status === "recommended"
+              const isAccepted = candidate.status === "recruited"
+              const isRejected = candidate.status === "refused"
+
+              const handleInvite = () => {
+                onInvite(offer.id, candidate)
+                updateLocalCandidate(candidate, (prev) => ({ ...prev, status: "invited", stage: "Invitation envoyée" }))
+              }
+
+              const handleRecommend = () => {
+                onRecommend(offer.id, candidate)
+                updateLocalCandidate(candidate, (prev) => ({ ...prev, status: "recommended", stage: "Recommandé" }))
+              }
+
+              const handleAccept = () => {
+                onAccept(offer.id, candidate)
+                updateLocalCandidate(candidate, (prev) => ({ ...prev, status: "recruited", stage: "Accepté" }))
+              }
+
+              const handleReject = () => {
+                onReject(offer.id, candidate)
+                updateLocalCandidate(candidate, (prev) => ({ ...prev, status: "refused", stage: "Refusé" }))
+              }
+
               return (
-                <article key={`${offer.id}-${candidate.name}`} className="space-y-3 rounded-3xl border border-border/70 bg-white px-4 py-4 shadow-sm">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{candidate.name}</p>
-                      <p className="text-xs text-muted-foreground">{candidate.stage}</p>
-                      {candidate.feedback && <p className="text-xs text-muted-foreground">{candidate.feedback}</p>}
+                <article
+                  key={`${offer.id}-${candidate.name}`}
+                  className="rounded-[28px] border border-border/60 bg-white/95 px-5 py-6 shadow-md transition hover:shadow-lg sm:px-7"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-base font-semibold text-foreground sm:text-lg">{candidate.name}</p>
+                      {candidate.stage && <p className="text-xs uppercase tracking-[0.22em] text-primary/80">{candidate.stage}</p>}
+                      {candidate.feedback && <p className="text-sm text-muted-foreground">{candidate.feedback}</p>}
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-                        Entretien {candidate.interviewScore}
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">
-                        Compatibilité {candidate.score}
-                      </span>
-                      <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${statusBadgeClass}`}>
+                    <div className="flex flex-col items-end gap-2 text-xs font-semibold uppercase tracking-[0.24em] sm:text-sm">
+                      {typeof candidate.interviewScore === "number" && (
+                        <span className="inline-flex items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-primary">
+                          Entretien {candidate.interviewScore}
+                        </span>
+                      )}
+                      {typeof candidate.score === "number" && (
+                        <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-600">
+                          Compatibilité {candidate.score}
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] tracking-[0.2em] ${statusBadgeClass}`}>
                         {statusLabel}
                       </span>
                     </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <button
+                      type="button"
+                      onClick={handleInvite}
+                      disabled={isInvited || isAccepted || isRejected}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/60 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Mail size={14} /> Inviter par mail
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRecommend}
+                      disabled={isRecommended || isAccepted || isRejected}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Share2 size={14} /> Recommander
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAccept}
+                      disabled={isAccepted}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <CheckCircle2 size={14} /> Accepter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReject}
+                      disabled={isRejected || isAccepted}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <UserX size={14} /> Refuser
+                    </button>
                   </div>
                 </article>
               )
