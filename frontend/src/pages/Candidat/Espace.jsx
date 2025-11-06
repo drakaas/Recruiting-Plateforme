@@ -88,14 +88,12 @@ export default function EspaceCandidatPage() {
   }, [applications, updateApplicationStatus])
 
   const handleLaunchInterview = (application) => {
-    const interviewConfig = application?.interviewConfig || {
-      jobId: application.jobId,
-      jobTitle: application.jobTitle,
-      company: application.company,
-      interviewDuration: 8,
-      questionCount: 3,
+    const id = application?.jobId
+    if (id) {
+      navigate(`/candidat/instructions?id=${encodeURIComponent(id)}`)
+      return
     }
-    navigate('/candidat/instructions', { state: interviewConfig })
+    navigate('/candidat/instructions')
   }
 
   return (

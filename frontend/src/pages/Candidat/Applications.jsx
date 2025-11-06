@@ -146,11 +146,11 @@ export default function MyApplicationsPage() {
     }
   }
 
-  const ActionButtonLikeEspace = () => (
+  const ActionButtonLikeEspace = ({ id }) => (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <button
         type="button"
-        onClick={() => navigate('/candidat/instructions')}
+        onClick={() => navigate(`/candidat/instructions?id=${encodeURIComponent(id || '')}`)}
         className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:bg-primary/90"
       >
         <PlayCircle size={14} /> Passer l'entretien vidéo
@@ -283,7 +283,7 @@ export default function MyApplicationsPage() {
 
                     <StatusTimelineLikeEspace status={mapped} />
 
-                    <ActionButtonLikeEspace />
+                    <ActionButtonLikeEspace id={appId} />
                   </article>
                 )
               })}

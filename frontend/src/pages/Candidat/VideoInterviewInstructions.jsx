@@ -1,23 +1,49 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { API_BASE_URL } from '../../utils/config'
 import { ShieldCheck, Mic, Video, Monitor, AlertTriangle } from 'lucide-react'
 
 export default function VideoInterviewInstructionsPage() {
   const navigate = useNavigate()
-  const { state } = useLocation()
-  const jobTitle = state?.jobTitle || 'Entretien vidéo'
-  const company = state?.company || 'Entreprise'
-  const interviewDuration = state?.interviewDuration ?? 8
-  const questionCount = state?.questionCount ?? 3
+  const { state, search } = useLocation()
+  const params = new URLSearchParams(search)
+  const appId = params.get('id') || state?.jobId || ''
+  const [meta, setMeta] = useState({ title: state?.jobTitle || 'Entretien vidéo', company: state?.company || 'Entreprise' })
+  const [plan, setPlan] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!appId) return
+      setLoading(true)
+      try {
+        const res = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/applications/${encodeURIComponent(appId)}`)
+        if (!res.ok) throw new Error('load_failed')
+        const data = await res.json()
+        if (!cancelled) {
+          setMeta({ title: data?.jobTitle || meta.title, company: data?.companyName || meta.company })
+          setPlan(data?.interviewPlan || null)
+        }
+      } catch (_e) {
+        if (!cancelled) setPlan(null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appId])
+
+  const interviewDuration = useMemo(() => plan?.total_minutes ?? 20, [plan])
+  const questionCount = useMemo(() => Array.isArray(plan?.questions) ? plan.questions.length : 10, [plan])
+  const jobTitle = meta.title
+  const company = meta.company
 
   const handleProceed = () => {
-    navigate('/candidat/quiz', {
-      replace: true,
-      state: {
-        jobId: state?.jobId,
-        jobTitle,
-        company,
-      },
-    })
+    const url = appId ? `/candidat/quiz?id=${encodeURIComponent(appId)}` : '/candidat/quiz'
+    navigate(url, { replace: true })
   }
 
   return (
