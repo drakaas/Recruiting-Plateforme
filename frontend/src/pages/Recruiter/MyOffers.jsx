@@ -22,6 +22,7 @@ import {
   UserX,
 } from "lucide-react"
 import { useAuth } from "../../context/useAuth"
+import { useApi } from "../../hooks/useApi"
 
 const CONTRACT_TYPES = [
   "CDI",
@@ -174,6 +175,7 @@ const STATUS_FILTERS = [
 
 export default function MyOffers() {
   const { user } = useAuth()
+  const { request } = useApi()
   const isRecruiter = user?.role === "recruiter"
   const isSubscribed = user?.isSubscribed ?? false
   const recruiterCompanyName = (() => {
@@ -184,7 +186,7 @@ export default function MyOffers() {
     return "Société Générale"
   })()
 
-  const [offers, setOffers] = useState(INITIAL_OFFERS)
+  const [offers, setOffers] = useState([])
   const [selectedStatus, setSelectedStatus] = useState("Toutes")
   const [showAddModal, setShowAddModal] = useState(false)
   const [activeOfferId, setActiveOfferId] = useState(null)
@@ -218,6 +220,37 @@ export default function MyOffers() {
     () => offers.find((offer) => offer.id === activeOfferId) ?? null,
     [offers, activeOfferId],
   )
+  useEffect(() => {
+    if (!isRecruiter || !user?.id) return
+    ;(async () => {
+      try {
+        const data = await request(`/offers`, { query: { recruiterId: user.id } })
+        // Normalize minimal shape to match UI expectations
+        const normalized = (Array.isArray(data) ? data : []).map((o) => ({
+          id: o.id || o._id || `offer-${Math.random().toString(36).slice(2)}`,
+          title: o.title,
+          department: o.department || `${recruiterCompanyName} · Département`,
+          status: o.status || 'Disponible',
+          publishedAt: o.publishedAt || 'Brouillon',
+          location: o.location || 'À préciser',
+          contractType: o.contractType || 'À préciser',
+          contractDuration: o.contractDuration || 'À préciser',
+          salary: o.salary || 'Non précisé',
+          remote: o.remote || 'À définir',
+          experience: o.experience || 'À préciser',
+          education: o.education || 'À préciser',
+          mission: o.mission || '',
+          keywords: Array.isArray(o.keywords) ? o.keywords : [],
+          skills: Array.isArray(o.skills) ? o.skills : [],
+          candidates: Array.isArray(o.candidates) ? o.candidates : [],
+        }))
+        setOffers(normalized)
+      } catch (_e) {
+        // keep empty/offline state silently
+      }
+    })()
+  }, [isRecruiter, user?.id, recruiterCompanyName, request])
+
 
   useEffect(() => {
     if (!candidateActionMessage) {
@@ -365,7 +398,7 @@ export default function MyOffers() {
     }))
   }
 
-  const handleAddOffer = (event) => {
+  const handleAddOffer = async (event) => {
     event.preventDefault()
 
     const keywords = newOffer.keywords
@@ -374,31 +407,54 @@ export default function MyOffers() {
       .filter(Boolean)
 
     const mission = newOffer.mission.trim()
+    const skills = newOffer.skills.filter((skill) => Boolean(skill?.name))
 
-  const skills = newOffer.skills.filter((skill) => Boolean(skill?.name))
+    try {
+      const created = await request(`/offers`, {
+        method: 'POST',
+        body: {
+          recruiterId: user?.id,
+          title: newOffer.title || 'Nouvelle opportunité',
+          department: newOffer.department || `${recruiterCompanyName} · Département`,
+          status: newOffer.status,
+          location: newOffer.location || 'À préciser',
+          contractType: newOffer.contractType || 'À préciser',
+          contractDuration: newOffer.contractDuration || 'À préciser',
+          salary: newOffer.salary || 'Non précisé',
+          remote: newOffer.remote || 'À définir',
+          experience: newOffer.experience || 'À préciser',
+          education: newOffer.education || 'À préciser',
+          mission,
+          keywords,
+          skills,
+        },
+      })
 
-    const offerToAdd = {
-      id: `offer-${Date.now()}`,
-      title: newOffer.title || "Nouvelle opportunité",
-      department: newOffer.department || `${recruiterCompanyName} · Département`,
-      status: newOffer.status,
-      publishedAt: "Brouillon",
-      location: newOffer.location || "À préciser",
-      contractType: newOffer.contractType || "À préciser",
-      contractDuration: newOffer.contractDuration || "À préciser",
-      salary: newOffer.salary || "Non précisé",
-      remote: newOffer.remote || "À définir",
-      experience: newOffer.experience || "À préciser",
-      education: newOffer.education || "À préciser",
-      mission,
-      keywords,
-      skills,
-      candidates: [],
+      const normalized = {
+        id: created.id || created._id || `offer-${Date.now()}`,
+        title: created.title,
+        department: created.department,
+        status: created.status || 'Disponible',
+        publishedAt: created.publishedAt || 'Brouillon',
+        location: created.location,
+        contractType: created.contractType,
+        contractDuration: created.contractDuration,
+        salary: created.salary,
+        remote: created.remote,
+        experience: created.experience,
+        education: created.education,
+        mission: created.mission,
+        keywords: Array.isArray(created.keywords) ? created.keywords : [],
+        skills: Array.isArray(created.skills) ? created.skills : [],
+        candidates: [],
+      }
+
+      setOffers((prev) => [normalized, ...prev])
+      setShowAddModal(false)
+      resetForm()
+    } catch (_e) {
+      // optionally surface an error toast later
     }
-
-    setOffers((prev) => [offerToAdd, ...prev])
-    setShowAddModal(false)
-    resetForm()
   }
 
   if (!isRecruiter) {
