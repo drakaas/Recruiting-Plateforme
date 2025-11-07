@@ -58,7 +58,7 @@ async function start() {
   })
   app.listen(ENV.PORT, () => {
     // eslint-disable-next-line no-console
-    console.log(`[backend] listening on http://localhost:${ENV.PORT}`)
+    console.log(`[backend] listening on http://0.0.0.0:${ENV.PORT}`)
   })
 }
 
