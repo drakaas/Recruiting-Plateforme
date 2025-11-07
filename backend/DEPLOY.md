@@ -32,13 +32,32 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker ubuntu
 
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+# Install Docker Compose (choose one method)
+
+# Method 1: Docker Compose V2 (recommended - included with Docker)
+# Docker Compose V2 is included with Docker Desktop and newer Docker installations
+# It uses: docker compose (with space, not hyphen)
+# Verify: docker compose version
+
+# Method 2: Docker Compose V1 (standalone binary)
+# Only needed if docker compose doesn't work
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    ARCH="x86_64"
+elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    ARCH="aarch64"
+else
+    echo "Unsupported architecture: $ARCH"
+    exit 1
+fi
+
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-${ARCH}" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
 # Verify installation
 docker --version
-docker-compose --version
+# Try both commands
+docker compose version 2>/dev/null || docker-compose --version
 ```
 
 ### 1.4 Install Nginx

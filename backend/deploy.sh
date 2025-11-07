@@ -26,20 +26,29 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
+# Detect Docker Compose command (docker-compose or docker compose)
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
     echo -e "${RED}❌ Docker Compose is not installed!${NC}"
+    echo "Please install Docker Compose:"
+    echo "  - For older versions: https://docs.docker.com/compose/install/"
+    echo "  - For newer versions: Docker Compose is included with Docker Desktop"
     exit 1
 fi
 
-echo -e "${YELLOW}📦 Building Docker image...${NC}"
-docker-compose build
+echo -e "${GREEN}✅ Using: $DOCKER_COMPOSE${NC}"
+
+echo -e "${YELLOW}📦 Building Docker images...${NC}"
+$DOCKER_COMPOSE build
 
 echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
-docker-compose down
+$DOCKER_COMPOSE down
 
 echo -e "${YELLOW}🚀 Starting containers...${NC}"
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 
 echo -e "${YELLOW}⏳ Waiting for services to be ready...${NC}"
 sleep 10
@@ -53,8 +62,8 @@ for i in {1..30}; do
     if [ $i -eq 30 ]; then
         echo -e "${RED}❌ Health check failed after 30 attempts${NC}"
         echo -e "${YELLOW}Checking container logs...${NC}"
-        docker-compose logs backend
-        docker-compose logs nginx
+        $DOCKER_COMPOSE logs backend
+        $DOCKER_COMPOSE logs nginx
         exit 1
     fi
     sleep 1
@@ -75,7 +84,7 @@ done
 echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
 echo ""
 echo "📊 Container status:"
-docker-compose ps
+$DOCKER_COMPOSE ps
 
 echo ""
 echo "🌐 Services available at:"
@@ -83,10 +92,10 @@ echo "   - API: http://localhost/api"
 echo "   - Health: http://localhost/health"
 echo ""
 echo "📝 View logs:"
-echo "   - Backend: docker-compose logs -f backend"
-echo "   - Nginx: docker-compose logs -f nginx"
-echo "   - All: docker-compose logs -f"
+echo "   - Backend: $DOCKER_COMPOSE logs -f backend"
+echo "   - Nginx: $DOCKER_COMPOSE logs -f nginx"
+echo "   - All: $DOCKER_COMPOSE logs -f"
 echo ""
-echo "🛑 Stop with: docker-compose down"
-echo "🔄 Restart with: docker-compose restart"
+echo "🛑 Stop with: $DOCKER_COMPOSE down"
+echo "🔄 Restart with: $DOCKER_COMPOSE restart"
 
